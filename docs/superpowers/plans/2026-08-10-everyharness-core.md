@@ -22,7 +22,7 @@
 
 ## Roadmap (later plans, one document each, written after this plan lands)
 
-- Plan 2: manifest-only adapters (codex, devin, kimi, cursor, gemini, agent-plugins-1.0) + `.agents/plugins/marketplace.json` descriptor + shell-hook bootstrap template family (copilot, antigravity).
+- Plan 2: manifest-only adapters (codex, devin, kimi, cursor, gemini, agent-plugins-1.0) + `.agents/plugins/marketplace.json` descriptor + shell-hook bootstrap template family (copilot, antigravity). Design inputs from the core-branch final review: prune stale generated files on regenerate (load prior manifest, delete hash-matching entries absent from the new FileSet); decide shared-path emission strategy (dedupe identical-content collisions vs shared-emitter layer) before the first shell-hook adapter; skip exec-bit drift comparison on win32; revisit claude-code bootstrap:'full' claim when bootstrap emission lands.
 - Plan 3: in-process adapters (opencode, pi, hermes) + bootstrap `generate:` mode.
 - Plan 4: `init` + `import` commands, generated install docs + CI workflow for plugin repos, superpowers dogfood test.
 - Plan 5 (separate repo `everyharness-container`): extract superpowers-evals Dockerfile, GHCR publish workflow; then phase-2 `everyharness test`.
