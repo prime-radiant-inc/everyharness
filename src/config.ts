@@ -25,7 +25,7 @@ const authorSchema = z.object({
 
 const rawSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'lowercase alphanumerics and hyphens'),
-  version: z.string().regex(/^\d+\.\d+\.\d+/, 'semver, e.g. 1.2.3'),
+  version: z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'semver, e.g. 1.2.3'),
   description: z.string(),
   author: authorSchema.optional(),
   license: z.string().optional(),

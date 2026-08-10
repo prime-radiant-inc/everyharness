@@ -76,4 +76,50 @@ describe('loadConfig', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-empty-'))
     expect(() => loadConfig(dir)).toThrowError(/everyharness\.yaml not found/)
   })
+
+  it('rejects version 1.0.0 x (trailing garbage)', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0 x\ndescription: bad\n'
+    ))).toThrowError(ConfigError)
+    try {
+      loadConfig(repoWith('name: bad\nversion: 1.0.0 x\ndescription: bad\n'))
+    } catch (e) {
+      expect((e as ConfigError).details.join('\n')).toContain('version')
+    }
+  })
+
+  it('rejects version 1.0.0.7 (too many segments)', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0.7\ndescription: bad\n'
+    ))).toThrowError(ConfigError)
+    try {
+      loadConfig(repoWith('name: bad\nversion: 1.0.0.7\ndescription: bad\n'))
+    } catch (e) {
+      expect((e as ConfigError).details.join('\n')).toContain('version')
+    }
+  })
+
+  it('accepts version 1.2.3-rc.1 (prerelease suffix)', () => {
+    const cfg = loadConfig(repoWith(
+      'name: demo\nversion: 1.2.3-rc.1\ndescription: test\n'
+    ))
+    expect(cfg.version).toBe('1.2.3-rc.1')
+  })
+
+  it('rejects invalid YAML syntax', () => {
+    expect(() => loadConfig(repoWith(
+      'name: [unclosed\n'
+    ))).toThrowError(ConfigError)
+    try {
+      loadConfig(repoWith('name: [unclosed\n'))
+    } catch (e) {
+      expect((e as ConfigError).message).toMatch(/not valid YAML/)
+    }
+  })
+
+  it('rejects an empty bootstrap block', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap: {}\n'
+    ))).toThrowError(/exactly one/i)
+  })
 })
