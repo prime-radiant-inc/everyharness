@@ -11,7 +11,7 @@ export type FileSet = GeneratedFile[]
 
 export function writeFileSet(root: string, files: FileSet): void {
   const rootAbs = resolve(root)
-  for (const file of files) {
+  const resolved = files.map((file) => {
     if (isAbsolute(file.path)) {
       throw new ConfigError(`generated file path must be relative to plugin root: ${file.path}`)
     }
@@ -19,6 +19,9 @@ export function writeFileSet(root: string, files: FileSet): void {
     if (!abs.startsWith(rootAbs + sep)) {
       throw new ConfigError(`generated file path escapes plugin root: ${file.path}`)
     }
+    return { file, abs }
+  })
+  for (const { file, abs } of resolved) {
     mkdirSync(dirname(abs), { recursive: true })
     writeFileSync(abs, file.content)
     if (file.executable) chmodSync(abs, 0o755)

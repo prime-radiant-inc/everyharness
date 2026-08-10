@@ -33,6 +33,17 @@ describe('writeFileSet', () => {
     expect(() => writeFileSet(dir, [{ path: '/etc/escape.txt', content: 'x' }])).toThrowError(ConfigError)
     expect(() => writeFileSet(dir, [{ path: '/etc/escape.txt', content: 'x' }])).toThrowError(/\/etc\/escape\.txt/)
   })
+
+  it('writes nothing when a later file in the set has a bad path', () => {
+    const dir = tmp()
+    expect(() =>
+      writeFileSet(dir, [
+        { path: 'good.txt', content: 'fine' },
+        { path: '../escape.txt', content: 'x' },
+      ]),
+    ).toThrowError(ConfigError)
+    expect(existsSync(join(dir, 'good.txt'))).toBe(false)
+  })
 })
 
 describe('deepMerge', () => {
