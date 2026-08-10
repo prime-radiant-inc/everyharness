@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { cpSync, mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
@@ -15,10 +15,16 @@ function generatedFixture(): string {
 
 describe('validate', () => {
   it('passes on a freshly generated plugin', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const result = validate(generatedFixture())
     expect(result.drift.clean).toBe(true)
     expect(result.schemaErrors).toEqual([])
     expect(result.ok).toBe(true)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it('reports drift when a generated file is hand-edited', () => {

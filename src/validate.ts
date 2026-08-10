@@ -19,7 +19,7 @@ export interface ValidateResult {
 
 export function validate(root: string): ValidateResult {
   const drift = checkDrift(root)
-  const ajv = new Ajv({ strict: false, allErrors: true })
+  const ajv = new Ajv({ strict: false, allErrors: true, logger: false })
   const schemaErrors: string[] = []
   for (const target of SCHEMA_TARGETS) {
     const filePath = join(root, target.file)
