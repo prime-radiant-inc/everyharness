@@ -51,7 +51,15 @@ export function checkDrift(root: string): DriftReport {
   if (!existsSync(abs)) {
     throw new ConfigError(`no generation manifest at ${MANIFEST_PATH} — run \`everyharness generate\` first`)
   }
-  const manifest = JSON.parse(readFileSync(abs, 'utf8')) as GenerationManifest
+  let manifest: GenerationManifest
+  try {
+    manifest = JSON.parse(readFileSync(abs, 'utf8')) as GenerationManifest
+  } catch (e) {
+    throw new ConfigError(`${MANIFEST_PATH} is not valid JSON: ${(e as Error).message}`)
+  }
+  if (typeof manifest.files !== 'object' || manifest.files === null) {
+    throw new ConfigError(`${MANIFEST_PATH} has an unrecognized format — regenerate with \`everyharness generate\``)
+  }
   const missing: string[] = []
   const modified: string[] = []
   for (const [path, entry] of Object.entries(manifest.files)) {

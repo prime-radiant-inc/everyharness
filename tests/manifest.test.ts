@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, statSync, chmodSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync, chmodSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { writeFileSet, deepMerge } from '../src/fileset.js'
@@ -108,5 +108,21 @@ describe('manifest + drift', () => {
 
   it('throws when no manifest exists', () => {
     expect(() => checkDrift(tmp())).toThrowError(/no generation manifest/i)
+  })
+
+  it('reports a corrupt manifest file as a ConfigError', () => {
+    const dir = tmp()
+    mkdirSync(join(dir, '.everyharness'), { recursive: true })
+    writeFileSync(join(dir, MANIFEST_PATH), 'not json')
+    expect(() => checkDrift(dir)).toThrowError(ConfigError)
+    expect(() => checkDrift(dir)).toThrowError(/not valid JSON/)
+  })
+
+  it('reports a manifest with the wrong shape as a ConfigError', () => {
+    const dir = tmp()
+    mkdirSync(join(dir, '.everyharness'), { recursive: true })
+    writeFileSync(join(dir, MANIFEST_PATH), '{"schema":1}')
+    expect(() => checkDrift(dir)).toThrowError(ConfigError)
+    expect(() => checkDrift(dir)).toThrowError(/unrecognized format/)
   })
 })
