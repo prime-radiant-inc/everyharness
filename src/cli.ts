@@ -2,6 +2,7 @@
 import { Command } from 'commander'
 import { generate, TOOL_VERSION } from './generate.js'
 import { validate } from './validate.js'
+import { renderMatrix } from './matrix.js'
 import { ConfigError } from './config.js'
 
 const program = new Command()
@@ -39,6 +40,13 @@ program
     if (!result.drift.clean) process.exit(3)
     if (result.schemaErrors.length > 0) process.exit(2)
     console.log('validate: clean')
+  })
+
+program
+  .command('matrix')
+  .description('Show which components each harness supports')
+  .action(() => {
+    process.stdout.write(renderMatrix())
   })
 
 program.parseAsync().catch((error: unknown) => {
