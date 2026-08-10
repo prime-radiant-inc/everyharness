@@ -1,0 +1,27 @@
+{
+  "name": "everyharness",
+  "version": "0.1.0",
+  "description": "Generate a coding-agent plugin for every harness from one config file",
+  "type": "module",
+  "license": "MIT",
+  "repository": "https://github.com/prime-radiant-inc/everyharness",
+  "bin": { "everyharness": "dist/cli.js" },
+  "files": ["dist", "schemas"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "commander": "^14.0.0",
+    "yaml": "^2.8.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
