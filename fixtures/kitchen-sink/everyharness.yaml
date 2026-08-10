@@ -1,0 +1,19 @@
+name: kitchen-sink
+version: 0.1.0
+description: Fixture plugin exercising every component type
+author: { name: Prime Radiant, email: dev@prime-radiant.example }
+license: MIT
+repository: https://github.com/prime-radiant-inc/everyharness
+keywords: [fixture]
+
+bootstrap:
+  skill: using-kitchen-sink
+
+harnesses:
+  overrides:
+    claude-code:
+      homepage: https://example.com/kitchen-sink
+
+marketplace:
+  category: Developer Tools
+  tags: [demo, fixture]

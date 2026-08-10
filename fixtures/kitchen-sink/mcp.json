@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ks-demo": {
+      "command": "node",
+      "args": ["./mcp-demo-server.js"]
+    }
+  }
+}

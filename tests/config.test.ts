@@ -122,4 +122,10 @@ describe('loadConfig', () => {
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap: {}\n'
     ))).toThrowError(/exactly one/i)
   })
+
+  it('loads the kitchen-sink fixture config', () => {
+    const cfg = loadConfig('fixtures/kitchen-sink')
+    expect(cfg.name).toBe('kitchen-sink')
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
+  })
 })
