@@ -135,11 +135,12 @@ Expected: FAIL — vitest not installed / no package.json.
 }
 ```
 
-`.gitignore`:
+`.gitignore` already exists (committed with the worktree setup) and must keep all four lines:
 ```
 node_modules/
 dist/
 *.tgz
+.worktrees/
 ```
 
 `LICENSE`: standard MIT text, year `2026`, holder `Prime Radiant, Inc.`:
