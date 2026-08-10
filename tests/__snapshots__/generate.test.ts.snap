@@ -1,0 +1,49 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`] = `
+"=== .claude-plugin/marketplace.json ===
+{
+  "name": "kitchen-sink-dev",
+  "description": "Development marketplace for kitchen-sink",
+  "plugins": [
+    {
+      "name": "kitchen-sink",
+      "description": "Fixture plugin exercising every component type",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Prime Radiant",
+        "email": "dev@prime-radiant.example"
+      },
+      "category": "Developer Tools",
+      "keywords": [
+        "demo",
+        "fixture"
+      ]
+    }
+  ],
+  "owner": {
+    "name": "Prime Radiant",
+    "email": "dev@prime-radiant.example"
+  }
+}
+
+=== .claude-plugin/plugin.json ===
+{
+  "name": "kitchen-sink",
+  "version": "0.1.0",
+  "description": "Fixture plugin exercising every component type",
+  "author": {
+    "name": "Prime Radiant",
+    "email": "dev@prime-radiant.example"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/prime-radiant-inc/everyharness",
+  "keywords": [
+    "fixture"
+  ],
+  "mcpServers": "./mcp.json",
+  "homepage": "https://example.com/kitchen-sink"
+}
+"
+`;
