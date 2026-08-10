@@ -74,7 +74,7 @@ The tool parses this plus the actual component files (SKILL.md frontmatter, comm
 |---|---|
 | `everyharness init` | Scaffold a new plugin: everyharness.yaml, component dirs, starter skill |
 | `everyharness import` | Read an existing plugin (Claude format in v1) and write everyharness.yaml — the "make an existing plugin omni-platform" path |
-| `everyharness generate` | Emit all per-harness adapters, manifests, docs, and tests; record file hashes in `.everyharness/manifest.json` |
+| `everyharness generate` | Emit all per-harness adapters, manifests, docs, and tests; records file hashes and executable bits in `.everyharness/manifest.json` |
 | `everyharness validate` | Drift check against the generation manifest; schema validation (SchemaStore, Agent Plugins spec schemas); layout lint; shells out to `claude plugin validate --strict` when available |
 | `everyharness matrix` | Print the component-support matrix: what translates where, what is dropped and why |
 | `everyharness test` | Phase 2: container-based install/smoke tests per harness |

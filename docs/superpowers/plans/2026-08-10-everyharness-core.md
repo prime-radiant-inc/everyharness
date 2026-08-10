@@ -846,12 +846,13 @@ git commit -m "feat: build normalized plugin model from config and components"
 - Consumes: nothing new
 - Produces:
   - `interface GeneratedFile { path: string; content: string; executable?: boolean }` and `type FileSet = GeneratedFile[]`
-  - `writeFileSet(root: string, files: FileSet): void` — creates parent dirs, sets `0o755` when `executable`
+  - `writeFileSet(root: string, files: FileSet): void` — creates parent dirs, sets `0o755` when `executable`; rejects (via `ConfigError`) any `file.path` that is absolute or resolves outside `root`
   - `deepMerge(base: unknown, override: unknown): unknown` — objects merge recursively; arrays and scalars replace
   - `MANIFEST_PATH = '.everyharness/manifest.json'`
-  - `saveManifest(root: string, files: FileSet, toolVersion: string): void` — writes `{ schema: 1, tool: 'everyharness@<version>', files: { [path]: '<sha256 hex>' } }`
+  - `interface ManifestEntry { sha256: string; executable?: true }`
+  - `saveManifest(root: string, files: FileSet, toolVersion: string): void` — writes `{ schema: 1, tool: 'everyharness@<version>', files: { [path]: ManifestEntry } }`
   - `interface DriftReport { missing: string[]; modified: string[]; clean: boolean }`
-  - `checkDrift(root: string): DriftReport` — throws `ConfigError` if no manifest exists
+  - `checkDrift(root: string): DriftReport` — throws `ConfigError` if no manifest exists; flags a file as `modified` when its content hash or on-disk executable bit no longer matches its manifest entry
 
 - [ ] **Step 1: Write failing tests**
 
@@ -935,7 +936,8 @@ Expected: FAIL — modules not found.
 `src/fileset.ts`:
 ```ts
 import { mkdirSync, writeFileSync, chmodSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, resolve, sep } from 'node:path'
+import { ConfigError } from './config.js'
 
 export interface GeneratedFile {
   path: string
@@ -945,8 +947,15 @@ export interface GeneratedFile {
 export type FileSet = GeneratedFile[]
 
 export function writeFileSet(root: string, files: FileSet): void {
+  const rootAbs = resolve(root)
   for (const file of files) {
-    const abs = join(root, file.path)
+    if (isAbsolute(file.path)) {
+      throw new ConfigError(`generated file path must be relative to plugin root: ${file.path}`)
+    }
+    const abs = resolve(root, file.path)
+    if (!abs.startsWith(rootAbs + sep)) {
+      throw new ConfigError(`generated file path escapes plugin root: ${file.path}`)
+    }
     mkdirSync(dirname(abs), { recursive: true })
     writeFileSync(abs, file.content)
     if (file.executable) chmodSync(abs, 0o755)
@@ -970,21 +979,30 @@ export function deepMerge(base: unknown, override: unknown): unknown {
 `src/manifest.ts`:
 ```ts
 import { createHash } from 'node:crypto'
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { ConfigError } from './config.js'
 import type { FileSet } from './fileset.js'
 
 export const MANIFEST_PATH = '.everyharness/manifest.json'
 
+interface ManifestEntry {
+  sha256: string
+  executable?: true
+}
+
 interface GenerationManifest {
   schema: 1
   tool: string
-  files: Record<string, string>
+  files: Record<string, ManifestEntry>
 }
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
+}
+
+function isExecutable(path: string): boolean {
+  return (statSync(path).mode & 0o111) !== 0
 }
 
 export function saveManifest(root: string, files: FileSet, toolVersion: string): void {
@@ -992,7 +1010,9 @@ export function saveManifest(root: string, files: FileSet, toolVersion: string):
     schema: 1,
     tool: `everyharness@${toolVersion}`,
     files: Object.fromEntries(
-      [...files].sort((a, b) => a.path.localeCompare(b.path)).map((f) => [f.path, sha256(f.content)]),
+      [...files]
+        .sort((a, b) => (a.path < b.path ? -1 : 1))
+        .map((f) => [f.path, { sha256: sha256(f.content), ...(f.executable ? { executable: true as const } : {}) }]),
     ),
   }
   const abs = join(root, MANIFEST_PATH)
@@ -1014,10 +1034,14 @@ export function checkDrift(root: string): DriftReport {
   const manifest = JSON.parse(readFileSync(abs, 'utf8')) as GenerationManifest
   const missing: string[] = []
   const modified: string[] = []
-  for (const [path, hash] of Object.entries(manifest.files)) {
+  for (const [path, entry] of Object.entries(manifest.files)) {
     const filePath = join(root, path)
     if (!existsSync(filePath)) missing.push(path)
-    else if (sha256(readFileSync(filePath, 'utf8')) !== hash) modified.push(path)
+    else if (
+      sha256(readFileSync(filePath, 'utf8')) !== entry.sha256 ||
+      isExecutable(filePath) !== Boolean(entry.executable)
+    )
+      modified.push(path)
   }
   return { missing, modified, clean: missing.length === 0 && modified.length === 0 }
 }

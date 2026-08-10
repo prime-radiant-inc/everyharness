@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, chmodSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, resolve, sep } from 'node:path'
+import { ConfigError } from './config.js'
 
 export interface GeneratedFile {
   path: string
@@ -9,8 +10,15 @@ export interface GeneratedFile {
 export type FileSet = GeneratedFile[]
 
 export function writeFileSet(root: string, files: FileSet): void {
+  const rootAbs = resolve(root)
   for (const file of files) {
-    const abs = join(root, file.path)
+    if (isAbsolute(file.path)) {
+      throw new ConfigError(`generated file path must be relative to plugin root: ${file.path}`)
+    }
+    const abs = resolve(root, file.path)
+    if (!abs.startsWith(rootAbs + sep)) {
+      throw new ConfigError(`generated file path escapes plugin root: ${file.path}`)
+    }
     mkdirSync(dirname(abs), { recursive: true })
     writeFileSync(abs, file.content)
     if (file.executable) chmodSync(abs, 0o755)
