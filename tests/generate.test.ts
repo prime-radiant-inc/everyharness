@@ -4,6 +4,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generate } from '../src/generate.js'
 import { MANIFEST_PATH, checkDrift } from '../src/manifest.js'
+import type { HarnessAdapter } from '../src/adapters/index.js'
+
+const fullSupport = {
+  skills: 'full',
+  commands: 'full',
+  agents: 'full',
+  hooks: 'full',
+  mcp: 'full',
+  bootstrap: 'full',
+} as const
 
 function freshFixture(): string {
   const dir = mkdtempSync(join(tmpdir(), 'eh-gen-'))
@@ -48,5 +58,41 @@ describe('generate', () => {
       .map((f) => `=== ${f.path} ===\n${f.content}`)
       .join('\n')
     expect(tree).toMatchSnapshot()
+  })
+
+  it('throws a ConfigError naming both adapters when they emit the same path', () => {
+    const dir = freshFixture()
+    const a: HarnessAdapter = {
+      name: 'adapter-a',
+      support: fullSupport,
+      emit: () => ({ files: [{ path: 'gen/collide.txt', content: 'a' }], warnings: [] }),
+    }
+    const b: HarnessAdapter = {
+      name: 'adapter-b',
+      support: fullSupport,
+      emit: () => ({ files: [{ path: 'gen/collide.txt', content: 'b' }], warnings: [] }),
+    }
+    expect(() => generate(dir, [a, b])).toThrowError(/both emit/)
+    try {
+      generate(dir, [a, b])
+    } catch (err) {
+      expect((err as Error).message).toContain('adapter-a')
+      expect((err as Error).message).toContain('adapter-b')
+    }
+    expect(existsSync(join(dir, MANIFEST_PATH))).toBe(false)
+  })
+
+  it('prefixes warnings with the adapter name', () => {
+    const dir = freshFixture()
+    const synthetic: HarnessAdapter = {
+      name: 'synthetic',
+      support: fullSupport,
+      emit: () => ({
+        files: [{ path: 'gen/x.txt', content: 'x' }],
+        warnings: ['thing not supported'],
+      }),
+    }
+    const result = generate(dir, [synthetic])
+    expect(result.warnings).toEqual(['[synthetic] thing not supported'])
   })
 })

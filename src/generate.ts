@@ -1,7 +1,7 @@
 import { buildModel } from './model.js'
 import { writeFileSet, type FileSet } from './fileset.js'
 import { saveManifest } from './manifest.js'
-import { adapters } from './adapters/index.js'
+import { adapters, type HarnessAdapter } from './adapters/index.js'
 import { ConfigError } from './config.js'
 
 export const TOOL_VERSION = '0.1.0'
@@ -12,10 +12,10 @@ export interface GenerateResult {
   adaptersRun: string[]
 }
 
-export function generate(root: string): GenerateResult {
+export function generate(root: string, adapterList: HarnessAdapter[] = adapters): GenerateResult {
   const model = buildModel(root)
   const excluded = new Set(model.config.harnesses.exclude)
-  const active = adapters.filter((a) => !excluded.has(a.name))
+  const active = adapterList.filter((a) => !excluded.has(a.name))
 
   const files: FileSet = []
   const warnings: string[] = []

@@ -1294,7 +1294,7 @@ git commit -m "feat: adapter interface, registry, and claude-code reference adap
 - Consumes: `buildModel` (Task 4), `writeFileSet`/`saveManifest` (Task 5), `adapters` (Task 6)
 - Produces:
   - `interface GenerateResult { files: FileSet; warnings: string[]; adaptersRun: string[] }`
-  - `generate(root: string): GenerateResult` — builds model, runs every non-excluded adapter, checks path collisions, writes files + manifest
+  - `generate(root: string, adapterList?: HarnessAdapter[]): GenerateResult` — builds model, runs every non-excluded adapter, checks path collisions, writes files + manifest
   - `TOOL_VERSION` exported from `src/generate.ts` (read from package.json at build time is overkill; a const kept in sync by release tooling later)
   - CLI: `everyharness generate [--dir <path>]`, exit 1 on `ConfigError`
 
@@ -1379,10 +1379,10 @@ export interface GenerateResult {
   adaptersRun: string[]
 }
 
-export function generate(root: string): GenerateResult {
+export function generate(root: string, adapterList: HarnessAdapter[] = adapters): GenerateResult {
   const model = buildModel(root)
   const excluded = new Set(model.config.harnesses.exclude)
-  const active = adapters.filter((a) => !excluded.has(a.name))
+  const active = adapterList.filter((a) => !excluded.has(a.name))
 
   const files: FileSet = []
   const warnings: string[] = []
