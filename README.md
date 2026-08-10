@@ -9,7 +9,18 @@ OpenCode, Pi, Kimi Code, Hermes, Devin CLI, Factory Droid, Grok Build CLI,
 Antigravity). Generated files are committed; `everyharness validate` catches
 drift in CI.
 
-Status: under construction. Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
+## Usage
+
+```bash
+npx everyharness generate   # emit per-harness files from everyharness.yaml
+npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
+npx everyharness matrix     # component-support matrix
+```
+
+Currently generated: Claude Code. The other harnesses land adapter by adapter
+(see `docs/superpowers/plans/`).
+
+Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 
 ## License
 
