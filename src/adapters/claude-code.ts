@@ -16,6 +16,9 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (config.keywords) manifest.keywords = config.keywords
   // Claude Code auto-discovers commands/, agents/, skills/, hooks/hooks.json,
   // and .mcp.json; only non-default locations need explicit manifest keys.
+  if (model.skills.length && config.components.skills !== 'skills') {
+    manifest.skills = `./${config.components.skills}`
+  }
   if (model.commands.length && config.components.commands !== 'commands') {
     manifest.commands = `./${config.components.commands}`
   }
