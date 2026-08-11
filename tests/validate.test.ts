@@ -52,4 +52,23 @@ describe('validate', () => {
     expect(result.ok).toBe(false)
     expect(result.schemaErrors.join('\n')).toMatch(/name/)
   })
+
+  it('reports schema violations against the 2020-dialect agent-plugins schema', () => {
+    const dir = generatedFixture()
+    // Corrupt the agent-plugins-1.0 plugin.json (validated under Ajv2020, not
+    // the plain Ajv used for the draft-07 claude-code schema) and refresh its
+    // recorded hash so this isolates the 2020-dialect check from drift.
+    const manifestPath = join(dir, 'plugin.json')
+    const broken = JSON.stringify({ version: '0.1.0' }) + '\n' // missing required "$schema" and "name"
+    writeFileSync(manifestPath, broken)
+    const recorded = JSON.parse(readFileSync(join(dir, '.everyharness/manifest.json'), 'utf8'))
+    recorded.files['plugin.json'] = {
+      sha256: createHash('sha256').update(broken).digest('hex')
+    }
+    writeFileSync(join(dir, '.everyharness/manifest.json'), JSON.stringify(recorded))
+    const result = validate(dir)
+    expect(result.drift.clean).toBe(true)
+    expect(result.ok).toBe(false)
+    expect(result.schemaErrors.join('\n')).toMatch(/name/)
+  })
 })

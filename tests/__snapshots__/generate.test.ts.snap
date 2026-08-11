@@ -246,5 +246,36 @@ else
 fi
 
 exit 0
+
+=== mcp.json ===
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "ks-demo": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./mcp-demo-server.js"
+      ]
+    }
+  }
+}
+
+=== plugin.json ===
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kitchen-sink",
+  "version": "0.1.0",
+  "description": "Fixture plugin exercising every component type",
+  "author": {
+    "name": "Prime Radiant",
+    "email": "dev@prime-radiant.example"
+  },
+  "repository": "https://github.com/prime-radiant-inc/everyharness",
+  "license": "MIT",
+  "keywords": [
+    "fixture"
+  ]
+}
 "
 `;
