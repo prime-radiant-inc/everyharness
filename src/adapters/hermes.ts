@@ -241,6 +241,12 @@ function installDoc(model: PluginModel): string {
     '```',
     '',
     "Hermes registers every skill natively via `register_skill`; when bootstrap is configured, the plugin injects it on the first turn through the `pre_llm_call` hook. Consult Hermes' plugin docs if this command doesn't match your installed version.",
+    '',
+    '## Caveats',
+    '',
+    `- Hermes prints \`${config.name} doesn't contain plugin.yaml or __init__.py. It may not be a valid Hermes plugin.\` during install. That warning is expected — everyharness emits those files under \`.hermes-plugin/\`, which Hermes locates after the warning. Confirm the install with \`hermes plugins list --plain --no-bundled\`.`,
+    `- \`hermes plugins enable\` takes the manifest name (\`${config.name}\`), not the checkout directory name — the two differ whenever the directory is named something else.`,
+    '- Hermes imports `.hermes-plugin/__init__.py` as a Python package on every load, so Python writes `.hermes-plugin/__pycache__/` next to it. Add `__pycache__/` to your `.gitignore`; everyharness never edits user files, so it will not do this for you.',
   ]
   return lines.join('\n')
 }

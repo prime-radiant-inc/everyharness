@@ -198,6 +198,28 @@ describe('hermes adapter with bootstrap: none', () => {
   })
 })
 
+describe('hermes adapter installDoc', () => {
+  it('includes a Caveats section', () => {
+    const doc = hermes.installDoc(model)
+    expect(doc).toContain('## Caveats')
+  })
+
+  it('covers the plugin.yaml/init.py warning caveat', () => {
+    const doc = hermes.installDoc(model)
+    expect(doc).toContain("doesn't contain plugin.yaml or __init__.py")
+  })
+
+  it('covers the hermes plugins enable name caveat', () => {
+    const doc = hermes.installDoc(model)
+    expect(doc).toContain('hermes plugins enable')
+  })
+
+  it('covers the __pycache__ litter caveat', () => {
+    const doc = hermes.installDoc(model)
+    expect(doc).toContain('__pycache__')
+  })
+})
+
 describe('hermes plugin.py -- execution smoke test', () => {
   it('registers skills as Path instances and injects the bootstrap marker via the captured pre_llm_call hook', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-hermes-exec-'))
