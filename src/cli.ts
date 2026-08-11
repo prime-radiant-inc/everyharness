@@ -4,6 +4,7 @@ import { generate, TOOL_VERSION } from './generate.js'
 import { validate } from './validate.js'
 import { renderMatrix } from './matrix.js'
 import { init } from './init.js'
+import { importPlugin } from './import.js'
 import { ConfigError } from './config.js'
 
 const program = new Command()
@@ -23,6 +24,17 @@ program
     for (const path of result.created) console.log(`created: ${path}`)
     console.log(`Generated ${result.generated} files for initialization`)
     console.log('Next: edit everyharness.yaml, then re-run everyharness generate')
+  })
+
+program
+  .command('import')
+  .description('Convert a Claude-format plugin (.claude-plugin/plugin.json) into everyharness.yaml')
+  .option('--dir <path>', 'plugin root directory', '.')
+  .action((opts: { dir: string }) => {
+    const result = importPlugin(opts.dir)
+    for (const item of result.found) console.log(`found: ${item}`)
+    for (const warning of result.warnings) console.warn(`warning: ${warning}`)
+    console.log('Wrote everyharness.yaml — review it, then run everyharness generate')
   })
 
 program

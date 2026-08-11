@@ -17,6 +17,10 @@ export type BootstrapMode =
   | { kind: 'generate' }
   | { kind: 'none' }
 
+// Shared with import.ts, which validates a Claude plugin.json's name against
+// this same rule before writing it into everyharness.yaml.
+export const PLUGIN_NAME_RE = /^[a-z0-9][a-z0-9-]*$/
+
 const authorSchema = z.object({
   name: z.string(),
   email: z.string().optional(),
@@ -45,7 +49,7 @@ const componentPath = z
   .optional()
 
 const rawSchema = z.object({
-  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'lowercase alphanumerics and hyphens'),
+  name: z.string().regex(PLUGIN_NAME_RE, 'lowercase alphanumerics and hyphens'),
   version: z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'semver, e.g. 1.2.3'),
   description: z.string(),
   author: authorSchema.optional(),
