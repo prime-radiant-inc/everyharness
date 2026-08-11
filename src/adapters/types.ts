@@ -21,4 +21,9 @@ export interface HarnessAdapter {
   name: string
   support: ComponentSupport
   emit(model: PluginModel): EmitResult
+  // Optional: markdown BODY (no marker, no heading — docs-emit.ts adds
+  // both) describing how to install the plugin on this harness. Adapters
+  // without an install story yet simply omit it; docs-emit.ts skips the
+  // docs/install/<name>.md file for them.
+  installDoc?(model: PluginModel): string
 }

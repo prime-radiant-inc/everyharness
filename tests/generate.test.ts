@@ -34,6 +34,16 @@ describe('generate', () => {
     expect(checkDrift(dir).clean).toBe(true)
   })
 
+  it('emits docs/support-matrix.md as a normal generated file, tracked in the manifest and drift-clean', () => {
+    const dir = freshFixture()
+    const result = generate(dir)
+    expect(result.files.some((f) => f.path === 'docs/support-matrix.md')).toBe(true)
+    expect(existsSync(join(dir, 'docs/support-matrix.md'))).toBe(true)
+    expect(checkDrift(dir).clean).toBe(true)
+    const manifest = JSON.parse(readFileSync(join(dir, MANIFEST_PATH), 'utf8'))
+    expect(manifest.files['docs/support-matrix.md']).toBeDefined()
+  })
+
   it('is idempotent', () => {
     const dir = freshFixture()
     generate(dir)

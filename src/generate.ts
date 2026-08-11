@@ -4,6 +4,7 @@ import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
 import { saveManifest, loadManifest, sha256, type GenerationManifest } from './manifest.js'
 import { adapters, type HarnessAdapter } from './adapters/index.js'
+import { emitDocs } from './docs-emit.js'
 import { ConfigError, type EveryharnessConfig } from './config.js'
 
 export const TOOL_VERSION = '0.3.0'
@@ -29,6 +30,34 @@ function isSourcePath(path: string, config: EveryharnessConfig): boolean {
   return false
 }
 
+// Merges one owner's emitted files into the accumulated byPath map: rejects
+// a file that would clobber a source path, dedupes byte-identical
+// collisions across owners, and rejects differing-content collisions.
+// Shared by the adapter emission loop and the docs stage below so both go
+// through the exact same collision rules.
+function mergeFiles(
+  byPath: Map<string, { owner: string; file: GeneratedFile }>,
+  owner: string,
+  files: GeneratedFile[],
+  config: EveryharnessConfig,
+): void {
+  for (const file of files) {
+    if (isSourcePath(file.path, config)) {
+      throw new ConfigError(`adapter "${owner}" would overwrite source file ${file.path}`)
+    }
+    const existing = byPath.get(file.path)
+    if (existing) {
+      const identical =
+        existing.file.content === file.content && Boolean(existing.file.executable) === Boolean(file.executable)
+      if (!identical) {
+        throw new ConfigError(`adapters "${existing.owner}" and "${owner}" both emit ${file.path}`)
+      }
+      continue // identical content: dedupe silently
+    }
+    byPath.set(file.path, { owner, file })
+  }
+}
+
 export function generate(
   root: string,
   adapterList: HarnessAdapter[] = adapters,
@@ -42,24 +71,10 @@ export function generate(
   const byPath = new Map<string, { owner: string; file: GeneratedFile }>()
   for (const adapter of active) {
     const result = adapter.emit(model)
-    for (const file of result.files) {
-      if (isSourcePath(file.path, model.config)) {
-        throw new ConfigError(`adapter "${adapter.name}" would overwrite source file ${file.path}`)
-      }
-      const existing = byPath.get(file.path)
-      if (existing) {
-        const identical =
-          existing.file.content === file.content &&
-          Boolean(existing.file.executable) === Boolean(file.executable)
-        if (!identical) {
-          throw new ConfigError(`adapters "${existing.owner}" and "${adapter.name}" both emit ${file.path}`)
-        }
-        continue // identical content: dedupe silently
-      }
-      byPath.set(file.path, { owner: adapter.name, file })
-    }
+    mergeFiles(byPath, adapter.name, result.files, model.config)
     warnings.push(...result.warnings.map((w) => `[${adapter.name}] ${w}`))
   }
+  mergeFiles(byPath, 'docs', emitDocs(model, active), model.config)
   const files: FileSet = [...byPath.values()].map((v) => v.file)
 
   // A corrupt manifest shouldn't dead-end generate the way it does validate:
