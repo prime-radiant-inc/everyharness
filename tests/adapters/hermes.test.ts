@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { parse } from 'yaml'
 import { buildModel } from '../../src/model.js'
 import { writeFileSet } from '../../src/fileset.js'
@@ -257,6 +257,70 @@ describe('hermes plugin.py -- execution smoke test', () => {
 
     const stdout = execFileSync('python3', [driverPath], { encoding: 'utf8' })
     expect(stdout).toContain('SMOKE_TEST_OK')
+  })
+
+  it('tolerates a missing bootstrap file: skills still register, no pre_llm_call hook, warns to stderr', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-hermes-exec-nobootstrap-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: demo\nversion: 1.0.0\ndescription: missing-bootstrap fixture\nbootstrap:\n  generate: true\n',
+    )
+    mkdirSync(join(dir, 'skills', 'a-skill'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'a-skill', 'SKILL.md'),
+      '---\nname: a-skill\ndescription: missing-bootstrap fixture skill\n---\n\n# A Skill\n\nSkill body.\n',
+    )
+
+    const demoModel = buildModel(dir)
+    const result = hermes.emit(demoModel)
+    writeFileSet(dir, result.files)
+
+    // Delete the generated bootstrap file after writing the fileset, simulating
+    // a broken/incomplete install where __init__.py exists but the bootstrap
+    // content it reads at runtime does not.
+    rmSync(join(dir, 'hooks', 'everyharness', 'bootstrap.md'))
+
+    const initPath = join(dir, '.hermes-plugin', '__init__.py')
+    const driverPath = join(dir, 'driver.py')
+    writeFileSync(
+      driverPath,
+      [
+        'import importlib.util',
+        'import pathlib',
+        'import sys',
+        '',
+        `spec = importlib.util.spec_from_file_location("plugin_mod", ${JSON.stringify(initPath)})`,
+        'mod = importlib.util.module_from_spec(spec)',
+        'spec.loader.exec_module(mod)',
+        '',
+        'calls = {"skills": [], "hooks": {}}',
+        '',
+        'class FakeCtx:',
+        '    def register_skill(self, name, path):',
+        '        calls["skills"].append((name, path))',
+        '',
+        '    def register_hook(self, name, fn):',
+        '        calls["hooks"][name] = fn',
+        '',
+        'ctx = FakeCtx()',
+        'mod.register(ctx)  # must not raise despite the missing bootstrap file',
+        '',
+        'assert calls["skills"], "expected at least one registered skill"',
+        'for name, path in calls["skills"]:',
+        '    assert isinstance(path, pathlib.Path), f"{name} was registered with {type(path)}, not Path"',
+        '',
+        'assert "pre_llm_call" not in calls["hooks"], "no hook should be registered when bootstrap is unavailable"',
+        '',
+        'print("SMOKE_TEST_OK")',
+        '',
+      ].join('\n'),
+    )
+
+    const proc = spawnSync('python3', [driverPath], { encoding: 'utf8' })
+    expect(proc.status).toBe(0)
+    expect(proc.stdout).toContain('SMOKE_TEST_OK')
+    expect(proc.stderr).toContain('demo plugin: bootstrap unavailable')
+    expect(proc.stderr).toContain('skills registered without session bootstrap')
   })
 
   it('emits syntactically valid Python with multi-segment component paths (regression: path charset)', () => {
