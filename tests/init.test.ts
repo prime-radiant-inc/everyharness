@@ -60,12 +60,12 @@ describe('init function', () => {
     expect(config.name).toBe('my-plugin')
   })
 
-  it('sanitizes names starting with numbers, falling back to my-plugin', () => {
-    const testDir = tmpDir('123-bad')
+  it('preserves names starting with digits (literal name sanitization)', () => {
+    const testDir = tmpDir('3d-tools')
     init(testDir)
 
     const config = loadConfig(testDir)
-    expect(config.name).toBe('my-plugin')
+    expect(config.name).toBe('3d-tools')
   })
 
   it('sanitizes special characters to hyphens, then collapses and strips them', () => {
@@ -88,9 +88,7 @@ describe('init function', () => {
     const testDir = tmpDir('existing')
     writeFileSync(join(testDir, 'everyharness.yaml'), 'name: existing\nversion: 1.0.0\ndescription: test\n')
 
-    expect(() => init(testDir)).toThrow(ConfigError)
-    const error = expect(() => init(testDir)).toThrow()
-    error.match(/already exists/)
+    expect(() => init(testDir)).toThrow(/already exists/)
   })
 
   it('re-scaffolds config only with --force, leaving pre-existing skill untouched', () => {
@@ -130,6 +128,25 @@ describe('init function', () => {
 
     const skillContent = readFileSync(skillPath, 'utf8')
     expect(skillContent).toBe('Custom skill content\n')
+  })
+
+  it('reports partial scaffold on generate failure', () => {
+    const testDir = tmpDir('generate-fail')
+    // Create a pre-existing GEMINI.md to trigger generate failure
+    writeFileSync(join(testDir, 'GEMINI.md'), 'existing doc')
+
+    try {
+      init(testDir)
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigError)
+      const message = (err as Error).message
+      expect(message).toMatch(/scaffolded .* but generate failed/)
+      expect(message).toMatch(/GEMINI.md/)
+    }
+
+    // Verify everyharness.yaml exists (partial scaffold survives)
+    expect(existsSync(join(testDir, 'everyharness.yaml'))).toBe(true)
   })
 })
 

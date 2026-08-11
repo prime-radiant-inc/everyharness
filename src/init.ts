@@ -19,8 +19,8 @@ function sanitizePluginName(dirname: string): string {
   // Strip leading and trailing hyphens
   sanitized = sanitized.replace(/^-+|-+$/g, '')
 
-  // If empty or starts with number, fallback to 'my-plugin'
-  if (!sanitized || /^\d/.test(sanitized)) {
+  // If empty, fallback to 'my-plugin'
+  if (!sanitized) {
     return 'my-plugin'
   }
 
@@ -78,10 +78,20 @@ Describe your plugin's first skill here.
   }
 
   // Run generate
-  const generateResult = generate(rootAbs)
+  try {
+    const generateResult = generate(rootAbs)
 
-  return {
-    created,
-    generated: generateResult.files.length,
+    return {
+      created,
+      generated: generateResult.files.length,
+    }
+  } catch (err) {
+    const originalMessage = err instanceof Error ? err.message : String(err)
+    const scaffoldedList = created.join(' and ')
+    throw new ConfigError(
+      `init scaffolded ${scaffoldedList} but generate failed: ${originalMessage}`,
+      [],
+      { cause: err },
+    )
   }
 }
