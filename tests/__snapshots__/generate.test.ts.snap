@@ -268,11 +268,13 @@ export default function extension(pi: ExtensionAPI) {
     skillPaths: [skillsDir],
   }))
 
-  for (const lifecycleEvent of ['session_start', 'session_compact'] as const) {
-    pi.on(lifecycleEvent, async () => {
-      injectBootstrap = true
-    })
-  }
+  pi.on('session_start', async () => {
+    injectBootstrap = true
+  })
+
+  pi.on('session_compact', async () => {
+    injectBootstrap = true
+  })
 
   pi.on('agent_end', async () => {
     injectBootstrap = false
