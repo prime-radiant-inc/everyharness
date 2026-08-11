@@ -36,6 +36,34 @@ function marketplaceDescriptor(model: PluginModel): Record<string, unknown> {
   return override ? (deepMerge(descriptor, override) as Record<string, unknown>) : descriptor
 }
 
+// Ground truth per Design decision 4: `droid plugin marketplace add URL`
+// then `droid plugin install <name>@<name>-dev`, with URL substituted from
+// config.repository (falling back to `<your-repo>` when absent — never a
+// fabricated listing). Grok and Copilot follow the same descriptor via
+// analogous marketplace commands.
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const url = config.repository ?? '<your-repo>'
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    '- `.agents/plugins/marketplace.json`, a distribution-only descriptor (this adapter does not translate any plugin components itself)',
+    '',
+    '## Installing',
+    '',
+    'On Factory Droid:',
+    '',
+    '```',
+    `droid plugin marketplace add ${url}`,
+    `droid plugin install ${config.name}@${config.name}-dev`,
+    '```',
+    '',
+    "Grok and Copilot use analogous marketplace-add / plugin-install commands against the same descriptor. All three clients install the plugin's real claude-code-style layout (skills/, commands/, agents/, hooks/, .mcp.json) that this descriptor points at — their effective support matches claude-code's, not the all-`none` row this adapter reports in the support matrix (which reflects only the descriptor file itself, not what those clients receive through it). Consult each client's docs if these commands don't match your installed version.",
+  ]
+  return lines.join('\n')
+}
+
 export const agentsMarketplace: HarnessAdapter = {
   name: 'agents-marketplace',
   support: {
@@ -46,6 +74,7 @@ export const agentsMarketplace: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'none',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const files: GeneratedFile[] = [
       { path: '.agents/plugins/marketplace.json', content: json(marketplaceDescriptor(model)) },

@@ -15,6 +15,32 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 
+// Ground truth per Design decision 4: `/plugins` in Codex CLI or the Codex
+// App plugin sidebar — no session hook exists, so there is nothing to name
+// as an install-time mechanism beyond native skill discovery.
+function installDoc(_model: PluginModel): string {
+  const lines = [
+    '## What gets emitted',
+    '',
+    "- `.codex-plugin/plugin.json` (with an empty `hooks` object, which suppresses Codex's automatic `hooks/hooks.json` registration)",
+    '',
+    '## Installing',
+    '',
+    'From Codex CLI or the Codex App plugin sidebar:',
+    '',
+    '```',
+    '/plugins',
+    '```',
+    '',
+    "Codex discovers this plugin's skills natively; there is no session-start hook to configure. Consult Codex's plugin docs if this doesn't match your installed version.",
+    '',
+    '## Caveats',
+    '',
+    '- Hooks and commands are not supported on Codex; bootstrap relies entirely on native skill discovery, with no active injection mechanism.',
+  ]
+  return lines.join('\n')
+}
+
 export const codex: HarnessAdapter = {
   name: 'codex',
   support: {
@@ -25,6 +51,7 @@ export const codex: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'partial',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const warnings: string[] = []
     const files: GeneratedFile[] = [{ path: '.codex-plugin/plugin.json', content: json(pluginManifest(model)) }]

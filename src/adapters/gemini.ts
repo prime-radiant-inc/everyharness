@@ -81,6 +81,51 @@ function contextFile(model: PluginModel): string {
   return `${GENERATED_MARKER}\n\nThis plugin provides skills in ${config.components.skills}/.\n`
 }
 
+// Ground truth per Design decision 4: `gemini extensions install URL`, with
+// URL substituted from config.repository (falling back to `<your-repo>`
+// when absent — never a fabricated listing).
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const url = config.repository ?? '<your-repo>'
+
+  const emitted = ['`gemini-extension.json`']
+  if (config.bootstrap.kind === 'skill') {
+    emitted.push("`GEMINI.md`, importing the bootstrap skill via Gemini's `@`-import syntax")
+  } else if (config.bootstrap.kind === 'generate') {
+    emitted.push(
+      `\`GEMINI.md\`, importing the generated bootstrap file at \`${GENERATED_BOOTSTRAP_PATH}\` (also emitted) via Gemini's \`@\`-import syntax`,
+    )
+  } else {
+    emitted.push("`GEMINI.md`, pointing at the plugin's skills directory (no bootstrap configured)")
+  }
+  if (model.commands.length) {
+    emitted.push(
+      `a \`commands/<name>.toml\` slash command for each command (${model.commands.map((c) => `\`${c.name}\``).join(', ')})`,
+    )
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    'Install the extension directly from its repository:',
+    '',
+    '```',
+    `gemini extensions install ${url}`,
+    '```',
+    '',
+    "`GEMINI.md` is loaded automatically as the extension's context file; each command becomes a `/name` slash command. Consult the Gemini CLI extensions docs if this command doesn't match your installed version.",
+    '',
+    '## Caveats',
+    '',
+    '- Gemini extension commands support only a single `{{args}}` placeholder; Claude-style positional arguments (`$1`, `$2`, ...) have no equivalent and are passed through verbatim into the command body.',
+  ]
+  return lines.join('\n')
+}
+
 export const gemini: HarnessAdapter = {
   name: 'gemini',
   support: {
@@ -91,6 +136,7 @@ export const gemini: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'full',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const { config } = model
     const warnings: string[] = []

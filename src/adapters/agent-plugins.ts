@@ -119,6 +119,40 @@ function mcpManifest(model: PluginModel): { manifest?: Record<string, unknown>; 
   return { manifest: { $schema: MCP_SCHEMA, mcpServers }, warnings }
 }
 
+// Ground truth per Design decision 4: Agent Plugins 1.0 has no install
+// command of its own — any compliant client loads the plugin directory
+// directly, so the doc points at that mechanism instead of a fabricated CLI
+// invocation.
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const emitted = ['`plugin.json`']
+  if (config.components.mcp !== 'mcp.json' && model.mcp !== undefined) {
+    emitted.push("`mcp.json`, translated from the plugin's MCP server config")
+  }
+
+  const caveats = ["- Commands, agents, and hooks are excluded from the Agent Plugins 1.0 spec entirely."]
+  if (config.components.skills !== 'skills') {
+    caveats.unshift(
+      `- The spec requires skills at the fixed \`skills/\` location; \`${config.components.skills}/\` will not be discovered.`,
+    )
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    "Agent Plugins 1.0 has no install command of its own — any compliant client loads the plugin directory directly (root `plugin.json`, `skills/`, and `mcp.json` when present). Point your client at this plugin's directory; consult the client's own docs for its exact loading steps.",
+    '',
+    '## Caveats',
+    '',
+    ...caveats,
+  ]
+  return lines.join('\n')
+}
+
 export const agentPlugins: HarnessAdapter = {
   name: 'agent-plugins-1.0',
   support: {
@@ -129,6 +163,7 @@ export const agentPlugins: HarnessAdapter = {
     mcp: 'full',
     bootstrap: 'none',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const { config } = model
     if (!NAME_PATTERN.test(config.name)) {

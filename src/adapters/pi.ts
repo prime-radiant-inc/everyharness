@@ -1,7 +1,7 @@
 import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
-import { json } from './shared.js'
+import { json, githubOwnerRepo } from './shared.js'
 import { nodePackageManifest, piExtensionPath, bootstrapContentPath } from '../bootstrap/node-package.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
 
@@ -172,6 +172,42 @@ function extensionFile(model: PluginModel): GeneratedFile {
   return { path: piExtensionPath(model.config.name), content: extensionModule(model) }
 }
 
+// Ground truth per Design decision 4: `pi install git:github.com/REPO`, with
+// REPO substituted from config.repository when it's a github.com URL and a
+// `<your-repo>` placeholder otherwise (never a fabricated listing).
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
+  const extensionPath = piExtensionPath(config.name)
+
+  const emitted = [
+    "`package.json` (shared with the opencode adapter when both are active), declaring the extension and skills directory under its `pi` field",
+    `\`${extensionPath}\`, the Pi extension module that registers the plugin's skills directory and injects bootstrap context`,
+  ]
+  if (config.bootstrap.kind === 'generate') {
+    emitted.push(`the generated bootstrap file at \`${GENERATED_BOOTSTRAP_PATH}\``)
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    '```',
+    `pi install git:github.com/${repo}`,
+    '```',
+    '',
+    "Pi discovers the extension and skills directory through the `pi` field in `package.json`. Consult Pi's extension docs if this command doesn't match your installed version.",
+    '',
+    '## Caveats',
+    '',
+    "- `package.json` is generated at the plugin root; if you maintain your own `package.json` for this plugin, exclude the pi and opencode adapters from generation (`harnesses.exclude`) or merge the fields by hand.",
+  ]
+  return lines.join('\n')
+}
+
 export const pi: HarnessAdapter = {
   name: 'pi',
   support: {
@@ -182,6 +218,7 @@ export const pi: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'full',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const warnings: string[] = []
     const files: GeneratedFile[] = [

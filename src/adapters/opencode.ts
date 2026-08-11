@@ -197,6 +197,54 @@ function agentFile(agent: AgentRef): GeneratedFile {
   return { path: `.opencode/agent/${agent.name}.md`, content: yamlFrontmatter(fields) + agent.body }
 }
 
+// Ground truth per Design decision 4: add `"plugin": ["<name>@git+URL.git"]`
+// to opencode.json, with URL substituted from config.repository (falling
+// back to `<your-repo>` when absent — never a fabricated listing).
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const url = config.repository ?? '<your-repo>'
+  const pluginPath = opencodePluginPath(config.name)
+
+  const emitted = [
+    '`package.json` (shared with the pi adapter when both are active)',
+    `\`${pluginPath}\`, the OpenCode plugin module that registers the plugin's skills directory and injects bootstrap context`,
+  ]
+  if (model.commands.length) {
+    emitted.push(
+      `a \`.opencode/command/<name>.md\` file for each command (${model.commands.map((c) => `\`${c.name}\``).join(', ')})`,
+    )
+  }
+  if (model.agents.length) {
+    emitted.push(
+      `a \`.opencode/agent/<name>.md\` file for each agent (${model.agents.map((a) => `\`${a.name}\``).join(', ')})`,
+    )
+  }
+  if (config.bootstrap.kind === 'generate') {
+    emitted.push(`the generated bootstrap file at \`${GENERATED_BOOTSTRAP_PATH}\``)
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    "Add the plugin to your project's `opencode.json`:",
+    '',
+    '```json',
+    `{ "plugin": ["${config.name}@git+${url}.git"] }`,
+    '```',
+    '',
+    "OpenCode loads the plugin module on startup: it registers the skills directory through a config hook (no symlinks needed) and reads commands/agents translated under `.opencode/`. Consult the OpenCode plugin docs if this doesn't match your installed version.",
+    '',
+    '## Caveats',
+    '',
+    "- `package.json` is generated at the plugin root; if you maintain your own `package.json` for this plugin, exclude the opencode and pi adapters from generation (`harnesses.exclude`) or merge the fields by hand.",
+  ]
+  return lines.join('\n')
+}
+
 export const opencode: HarnessAdapter = {
   name: 'opencode',
   support: {
@@ -207,6 +255,7 @@ export const opencode: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'full',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const warnings: string[] = []
     const files: GeneratedFile[] = [

@@ -44,6 +44,43 @@ function hooksManifest(): Record<string, unknown> {
   }
 }
 
+// Ground truth per Design decision 4: `/add-plugin` in Cursor Agent chat, or
+// marketplace search once listed there — no fabricated marketplace listing.
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const bootstrapActive = config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate'
+
+  const emitted = ['`.cursor-plugin/plugin.json`']
+  if (bootstrapActive) {
+    emitted.push(`the \`${BOOTSTRAP_HOOKS_DIR}\` bootstrap hook and its \`${BOOTSTRAP_HOOKS_JSON_PATH}\``)
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    'From the Cursor Agent chat:',
+    '',
+    '```',
+    '/add-plugin',
+    '```',
+    '',
+    "Point it at this plugin's directory (or search the plugin marketplace once it's listed there). Cursor reads `.cursor-plugin/plugin.json`. Consult Cursor's plugin docs if this doesn't match your installed version.",
+  ]
+  if (model.hooks !== undefined) {
+    lines.push(
+      '',
+      '## Caveats',
+      '',
+      `- Hand-written entries in \`${config.components.hooks}\` are not translated for Cursor; only the bootstrap sessionStart hook is emitted.`,
+    )
+  }
+  return lines.join('\n')
+}
+
 export const cursor: HarnessAdapter = {
   name: 'cursor',
   support: {
@@ -54,6 +91,7 @@ export const cursor: HarnessAdapter = {
     mcp: 'none',
     bootstrap: 'full',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const { config } = model
     const warnings: string[] = []
