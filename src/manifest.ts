@@ -6,23 +6,39 @@ import type { FileSet } from './fileset.js'
 
 export const MANIFEST_PATH = '.everyharness/manifest.json'
 
-interface ManifestEntry {
+export interface ManifestEntry {
   sha256: string
   executable?: true
 }
 
-interface GenerationManifest {
+export interface GenerationManifest {
   schema: 1
   tool: string
   files: Record<string, ManifestEntry>
 }
 
-function sha256(content: string): string {
+export function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
 function isExecutable(path: string): boolean {
   return (statSync(path).mode & 0o111) !== 0
+}
+
+export function loadManifest(root: string): GenerationManifest | undefined {
+  const abs = join(root, MANIFEST_PATH)
+  if (!existsSync(abs)) return undefined
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(readFileSync(abs, 'utf8'))
+  } catch (e) {
+    throw new ConfigError(`${MANIFEST_PATH} is not valid JSON: ${(e as Error).message}`)
+  }
+  const m = manifest as GenerationManifest
+  if (typeof m !== 'object' || m === null || typeof m.files !== 'object' || m.files === null) {
+    throw new ConfigError(`${MANIFEST_PATH} has an unrecognized format — regenerate with \`everyharness generate\``)
+  }
+  return m
 }
 
 export function saveManifest(root: string, files: FileSet, toolVersion: string): void {
@@ -47,18 +63,9 @@ export interface DriftReport {
 }
 
 export function checkDrift(root: string): DriftReport {
-  const abs = join(root, MANIFEST_PATH)
-  if (!existsSync(abs)) {
+  const manifest = loadManifest(root)
+  if (!manifest) {
     throw new ConfigError(`no generation manifest at ${MANIFEST_PATH} — run \`everyharness generate\` first`)
-  }
-  let manifest: GenerationManifest
-  try {
-    manifest = JSON.parse(readFileSync(abs, 'utf8')) as GenerationManifest
-  } catch (e) {
-    throw new ConfigError(`${MANIFEST_PATH} is not valid JSON: ${(e as Error).message}`)
-  }
-  if (typeof manifest.files !== 'object' || manifest.files === null) {
-    throw new ConfigError(`${MANIFEST_PATH} has an unrecognized format — regenerate with \`everyharness generate\``)
   }
   const missing: string[] = []
   const modified: string[] = []

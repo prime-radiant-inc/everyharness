@@ -137,4 +137,27 @@ describe('generate', () => {
     const evilAdapter = { name: 'evil', support: fullSupport, emit: () => ({ files: [{ path: 'skills/demo.md', content: 'overwritten' }], warnings: [] }) }
     expect(() => generate(dir, [evilAdapter])).toThrowError(/would overwrite source/)
   })
+
+  it('prunes files dropped from the new generation when unmodified', () => {
+    const dir = freshFixture()
+    const a = { name: 'a', support: fullSupport, emit: () => ({ files: [{ path: 'gen/old.txt', content: 'v1' }], warnings: [] }) }
+    generate(dir, [a])
+    const b = { name: 'a', support: fullSupport, emit: () => ({ files: [{ path: 'gen2/new.txt', content: 'v2' }], warnings: [] }) }
+    const result = generate(dir, [b])
+    expect(result.pruned).toEqual(['gen/old.txt'])
+    expect(existsSync(join(dir, 'gen/old.txt'))).toBe(false)
+    expect(existsSync(join(dir, 'gen'))).toBe(false) // empty parent removed
+    expect(existsSync(join(dir, 'gen2/new.txt'))).toBe(true)
+  })
+
+  it('leaves hand-modified stale files and warns', () => {
+    const dir = freshFixture()
+    const a = { name: 'a', support: fullSupport, emit: () => ({ files: [{ path: 'gen/old.txt', content: 'v1' }], warnings: [] }) }
+    generate(dir, [a])
+    writeFileSync(join(dir, 'gen/old.txt'), 'edited')
+    const result = generate(dir, [{ name: 'a', support: fullSupport, emit: () => ({ files: [], warnings: [] }) }])
+    expect(result.pruned).toEqual([])
+    expect(result.warnings.join('\n')).toMatch(/stale generated file gen\/old\.txt/)
+    expect(existsSync(join(dir, 'gen/old.txt'))).toBe(true)
+  })
 })

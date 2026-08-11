@@ -1,6 +1,8 @@
+import { rmSync, rmdirSync, readdirSync, readFileSync, existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
-import { saveManifest } from './manifest.js'
+import { saveManifest, loadManifest, sha256 } from './manifest.js'
 import { adapters, type HarnessAdapter } from './adapters/index.js'
 import { ConfigError, type EveryharnessConfig } from './config.js'
 
@@ -10,6 +12,7 @@ export interface GenerateResult {
   files: FileSet
   warnings: string[]
   adaptersRun: string[]
+  pruned: string[]
 }
 
 function isSourcePath(path: string, config: EveryharnessConfig): boolean {
@@ -50,7 +53,30 @@ export function generate(root: string, adapterList: HarnessAdapter[] = adapters)
   }
   const files: FileSet = [...byPath.values()].map((v) => v.file)
 
+  const prior = loadManifest(root)
+  const pruned: string[] = []
+  if (prior) {
+    const newPaths = new Set(files.map((f) => f.path))
+    for (const [path, entry] of Object.entries(prior.files)) {
+      if (newPaths.has(path)) continue
+      const abs = join(root, path)
+      if (!existsSync(abs)) continue
+      if (sha256(readFileSync(abs, 'utf8')) === entry.sha256) {
+        rmSync(abs)
+        pruned.push(path)
+        let parent = dirname(abs)
+        const rootAbs = resolve(root)
+        while (resolve(parent) !== rootAbs && existsSync(parent) && readdirSync(parent).length === 0) {
+          rmdirSync(parent)
+          parent = dirname(parent)
+        }
+      } else {
+        warnings.push(`stale generated file ${path} was hand-modified; delete it or move changes into everyharness.yaml`)
+      }
+    }
+  }
+
   writeFileSet(root, files)
   saveManifest(root, files, TOOL_VERSION)
-  return { files, warnings, adaptersRun: active.map((a) => a.name) }
+  return { files, warnings, adaptersRun: active.map((a) => a.name), pruned }
 }

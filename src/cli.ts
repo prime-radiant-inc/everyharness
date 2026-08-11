@@ -19,6 +19,9 @@ program
   .action((opts: { dir: string }) => {
     const result = generate(opts.dir)
     for (const warning of result.warnings) console.warn(`warning: ${warning}`)
+    if (result.pruned.length > 0) {
+      console.log(`Pruned ${result.pruned.length} stale file(s)`)
+    }
     console.log(
       `Generated ${result.files.length} files for ${result.adaptersRun.length} harness(es): ${result.adaptersRun.join(', ')}`,
     )
