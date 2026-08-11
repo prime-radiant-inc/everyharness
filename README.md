@@ -1,12 +1,12 @@
 # everyharness
 
 > [!WARNING]
-> **Work in progress — pre-alpha.** Only the core pipeline and the Claude Code
-> adapter exist today. The other harness adapters, `init`/`import`, generated
-> install docs, and container-based install testing are still being built.
-> Not yet published to npm. Everything — including the `everyharness.yaml`
-> schema and the generation-manifest format — may change without notice.
-> Don't depend on this yet.
+> **Work in progress — pre-alpha.** Eight harness adapters exist today (see
+> Current status below); init/import, generated install docs, the in-process
+> adapters (OpenCode, Pi, Hermes), and container-based install testing are
+> still being built. Not yet published to npm. Everything — including the
+> `everyharness.yaml` schema and the generation-manifest format — may change
+> without notice. Don't depend on this yet.
 
 Generate a coding-agent plugin for every harness from one config file.
 
