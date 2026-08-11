@@ -106,7 +106,7 @@ describe('cursor adapter with harnesses.overrides.cursor', () => {
 })
 
 describe('cursor adapter with bootstrap.generate', () => {
-  it('warns that generate falls back to none and emits no hook files', () => {
+  it('emits a generated bootstrap.md wired into the session-start hook', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -114,9 +114,13 @@ describe('cursor adapter with bootstrap.generate', () => {
     )
     const generateModel = buildModel(dir)
     const result = cursor.emit(generateModel)
-    expect(result.warnings).toContain('bootstrap.generate is not implemented until Plan 3; falling back to none')
-    expect(result.files.some((f) => f.path.startsWith('hooks/everyharness/'))).toBe(false)
+    expect(result.warnings).toEqual([])
+    const bootstrapMd = result.files.find((f) => f.path === 'hooks/everyharness/bootstrap.md')
+    expect(bootstrapMd?.content).toContain('# generate-bootstrap plugin')
+    const sessionStart = result.files.find((f) => f.path === 'hooks/everyharness/session-start')
+    expect(sessionStart?.executable).toBe(true)
+    expect(sessionStart?.content).toContain('hooks/everyharness/bootstrap.md')
     const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
-    expect(manifest.hooks).toBeUndefined()
+    expect(manifest.hooks).toBe('./hooks/everyharness/hooks-cursor.json')
   })
 })

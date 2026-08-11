@@ -93,7 +93,7 @@ describe('kimi adapter with bootstrap.none', () => {
 })
 
 describe('kimi adapter with bootstrap.generate', () => {
-  it('warns that generate falls back to none and emits no sessionStart', () => {
+  it('warns that generate mode is not supported on kimi and emits no sessionStart', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -101,7 +101,9 @@ describe('kimi adapter with bootstrap.generate', () => {
     )
     const generateModel = buildModel(dir)
     const result = kimi.emit(generateModel)
-    expect(result.warnings).toEqual(['bootstrap.generate is not implemented until Plan 3; falling back to none'])
+    expect(result.warnings).toEqual([
+      'kimi sessionStart requires a named bootstrap skill; generate mode is not supported on kimi',
+    ])
     const manifest = JSON.parse(result.files.find((f) => f.path === '.kimi-plugin/plugin.json')!.content)
     expect(manifest.sessionStart).toBeUndefined()
   })

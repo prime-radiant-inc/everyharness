@@ -138,6 +138,18 @@ describe('generate', () => {
     expect(() => generate(dir, [evilAdapter])).toThrowError(/would overwrite source/)
   })
 
+  it('isSourcePath: allows non-.md siblings under commands/agents but still blocks .md and any skills path', () => {
+    const dir = freshFixture()
+    const toml = { name: 'toml', support: fullSupport, emit: () => ({ files: [{ path: 'commands/x.toml', content: 'x' }], warnings: [] }) }
+    expect(() => generate(dir, [toml])).not.toThrow()
+
+    const md = { name: 'md', support: fullSupport, emit: () => ({ files: [{ path: 'commands/x.md', content: 'x' }], warnings: [] }) }
+    expect(() => generate(dir, [md])).toThrowError(/would overwrite source/)
+
+    const skillFile = { name: 'skill-file', support: fullSupport, emit: () => ({ files: [{ path: 'skills/x/whatever.txt', content: 'x' }], warnings: [] }) }
+    expect(() => generate(dir, [skillFile])).toThrowError(/would overwrite source/)
+  })
+
   it('prunes files dropped from the new generation when unmodified', () => {
     const dir = freshFixture()
     const a = { name: 'a', support: fullSupport, emit: () => ({ files: [{ path: 'gen/old.txt', content: 'v1' }], warnings: [] }) }

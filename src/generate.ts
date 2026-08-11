@@ -18,8 +18,13 @@ export interface GenerateResult {
 function isSourcePath(path: string, config: EveryharnessConfig): boolean {
   if (path === 'everyharness.yaml') return true
   if (path === config.components.hooks || path === config.components.mcp) return true
-  for (const dir of [config.components.skills, config.components.commands, config.components.agents]) {
-    if (path === dir || path.startsWith(`${dir}/`)) return true
+  const { skills, commands, agents } = config.components
+  if (path === skills || path.startsWith(`${skills}/`)) return true
+  // commands/agents source files are always .md; adapters may emit
+  // non-.md siblings into the same directory (e.g. Gemini's TOML commands)
+  // without risking a source clobber.
+  for (const dir of [commands, agents]) {
+    if (path.endsWith('.md') && (path === dir || path.startsWith(`${dir}/`))) return true
   }
   return false
 }

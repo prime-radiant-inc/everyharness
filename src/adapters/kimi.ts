@@ -31,7 +31,7 @@ export const kimi: HarnessAdapter = {
     const files: GeneratedFile[] = [{ path: '.kimi-plugin/plugin.json', content: json(pluginManifest(model)) }]
 
     if (config.bootstrap.kind === 'generate') {
-      warnings.push('bootstrap.generate is not implemented until Plan 3; falling back to none')
+      warnings.push('kimi sessionStart requires a named bootstrap skill; generate mode is not supported on kimi')
     }
 
     if (model.hooks !== undefined) warnings.push('hooks are not emitted for kimi')

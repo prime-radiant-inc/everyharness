@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../src/bootstrap/shell-hook.js'
 
 describe('sessionStartScript', () => {
-  const script = sessionStartScript({ pluginName: 'demo', bootstrapSkillDir: 'skills/using-demo' })
+  const script = sessionStartScript({ pluginName: 'demo', bootstrapContentPath: 'skills/using-demo/SKILL.md' })
 
   it('starts with shebang then GENERATED marker', () => {
     const lines = script.split('\n')

@@ -3,6 +3,7 @@ import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
+import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
 import { baseManifestFields, json } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
@@ -34,7 +35,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (model.agents.length && config.components.agents !== 'agents') {
     manifest.agents = `./${config.components.agents}`
   }
-  if (config.bootstrap.kind === 'skill') {
+  if (config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate') {
     // Bootstrap hooks always live at a non-default path, and always exist
     // (even with no user hooks), so this takes priority over the general
     // non-default-path rule below.
@@ -96,14 +97,23 @@ export const claudeCode: HarnessAdapter = {
       files.push(
         {
           path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapSkillDir: skill.dir }),
+          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
           executable: true,
         },
         { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
         { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
       )
     } else if (config.bootstrap.kind === 'generate') {
-      warnings.push('bootstrap.generate is not implemented until Plan 3; falling back to none')
+      files.push(
+        { path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) },
+        {
+          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
+          executable: true,
+        },
+        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+      )
     }
     return { files, warnings }
   },
