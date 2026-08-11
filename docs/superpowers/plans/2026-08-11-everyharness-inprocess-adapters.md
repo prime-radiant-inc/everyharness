@@ -14,7 +14,7 @@
 ## Global Constraints
 
 - Node `>=20`, ESM, TS strict, `.js` relative imports. Runtime deps stay exactly: `commander`, `yaml`, `zod`, `ajv`.
-- Exit codes unchanged. No silent drops. Generated-file markers: `//` comment line 2 for JS/TS, `#` line 2 for Python/bash (line 1 shebang where applicable), `<!-- ... -->` line 1 for markdown, `# ...` line 1 for TOML and YAML. JSON marker-free.
+- Exit codes unchanged. No silent drops. Generated-file markers: `//` comment line 2 for JS/TS, `#` line 2 for Python/bash (line 1 shebang where applicable), `<!-- ... -->` line 1 for markdown WITHOUT frontmatter; for frontmattered markdown (opencode command/agent files) the marker is a `# ...` YAML comment INSIDE the frontmatter block — a leading HTML comment would break frontmatter parsers, which require `---` on line 1 (correction discovered during Task 3). `# ...` line 1 for TOML and YAML. JSON marker-free.
 - Emitted runtime code must be self-contained (no imports beyond node builtins / the harness's own API package) and must never hard-code the plugin name where a template parameter exists.
 - In-process templates keep superpowers' proven mechanics: module-level tri-state bootstrap cache; content-marker dedup guard (`<plugin-bootstrap plugin="NAME">` as the marker); OpenCode injects into the first USER message (not system); Pi splices after leading `compactionSummary` messages and re-arms on `session_start`/`session_compact`, disarms on `agent_end`; Hermes registers skills with `Path(...)` (str silently disables the plugin) and injects via `pre_llm_call` + `is_first_turn`.
 - TDD; pristine output.
