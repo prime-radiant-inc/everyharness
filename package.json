@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": "https://github.com/prime-radiant-inc/everyharness",
   "bin": { "everyharness": "dist/cli.js" },
-  "files": ["dist", "schemas"],
+  "files": ["dist", "schemas", "checks"],
   "engines": { "node": ">=20" },
   "scripts": {
     "build": "tsc",

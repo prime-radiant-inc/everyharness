@@ -5,6 +5,7 @@ import { validate } from './validate.js'
 import { renderMatrix } from './matrix.js'
 import { init } from './init.js'
 import { importPlugin } from './import.js'
+import { runTest, DEFAULT_IMAGE } from './test-command.js'
 import { ConfigError } from './config.js'
 
 const program = new Command()
@@ -80,6 +81,16 @@ program
   .description('Show which components each harness supports')
   .action(() => {
     process.stdout.write(renderMatrix())
+  })
+
+program
+  .command('test')
+  .description('Run container-backed offline install checks against a generated plugin')
+  .option('--dir <path>', 'plugin root directory', '.')
+  .option('--image <ref>', 'container image to run checks in', DEFAULT_IMAGE)
+  .action(async (opts: { dir: string; image: string }) => {
+    const result = await runTest(opts.dir, { image: opts.image })
+    if (result.exitCode !== 0) process.exit(result.exitCode)
   })
 
 program.parseAsync().catch((error: unknown) => {
