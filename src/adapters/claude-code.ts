@@ -8,6 +8,19 @@ import { baseManifestFields, json, githubOwnerRepo } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
+//
+// plugin.json's `hooks` key points at this merged file while the user's own
+// hooks/hooks.json stays at Claude Code's auto-discovery default path.
+// CONFIRMED (2026-08-11, empirical, Claude Code 2.1.217; see
+// docs/superpowers/plans/2026-08-11-hook-double-fire-findings.md): Claude
+// Code reads and registers hooks from *both* files (supplement, not
+// replace), but dedupes exact-duplicate {matcher, command} entries at
+// execution time, so a hook does not fire twice just because it appears
+// (byte-identically) in both files. Since mergedClaudeHooks() always clones
+// the user's hooks verbatim into the merged file, user hooks do not
+// double-fire; the bootstrap SessionStart entry (only in the merged file)
+// fires exactly once. This only holds while the merged file is in sync with
+// the source, which `generate()` guarantees on every run.
 const BOOTSTRAP_HOOKS_DIR = 'hooks/everyharness'
 const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks.json`
 
