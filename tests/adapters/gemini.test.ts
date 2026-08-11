@@ -276,3 +276,25 @@ describe('gemini TOML command translation: bootstrap-mode independence', () => {
     }
   })
 })
+
+describe('gemini TOML command translation: word-boundary preservation', () => {
+  it.skipIf(!TOMLLIB_AVAILABLE)('replaces standalone $ARGUMENTS but preserves $ARGUMENTSX (longer token)', () => {
+    const dir = tmpFixture(
+      'name: word-boundary-demo\nversion: 1.0.0\ndescription: word-boundary fixture\nbootstrap:\n  none: true\n',
+    )
+    mkdirSync(join(dir, 'commands'), { recursive: true })
+    writeFileSync(
+      join(dir, 'commands', 'mixed.md'),
+      '---\ndescription: Mixed arguments token test\n---\n\nUse $ARGUMENTSX and $ARGUMENTS.\n',
+    )
+    const boundaryModel = buildModel(dir)
+    const result = gemini.emit(boundaryModel)
+    const toml = result.files.find((f) => f.path === 'commands/mixed.toml')!.content
+
+    expect(toml).toContain('$ARGUMENTSX') // longer token unchanged
+    expect(toml).toContain('{{args}}.') // standalone token replaced
+
+    const parsed = tomlParse(toml)
+    expect(parsed.prompt).toBe('\nUse $ARGUMENTSX and {{args}}.\n')
+  })
+})

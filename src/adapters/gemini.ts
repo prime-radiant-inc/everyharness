@@ -37,7 +37,7 @@ function commandFile(cmd: CommandRef, warnings: string[]): GeneratedFile {
       `command "${cmd.name}" uses positional arguments; Gemini supports only {{args}} — positional syntax passed through verbatim`,
     )
   }
-  let body = cmd.body.replaceAll('$ARGUMENTS', '{{args}}')
+  let body = cmd.body.replace(/\$ARGUMENTS(?!\w)/g, '{{args}}')
   // A literal `"""` in the body would prematurely close the TOML basic
   // multiline string. Escaping one of the three quotes (`""\"`) decodes back
   // to `"""` on parse, so the round-tripped prompt content is unchanged.
