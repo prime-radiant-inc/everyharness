@@ -25,8 +25,7 @@ npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 ```
 
-**Current status: only Claude Code generation works.** The other harnesses
-land adapter by adapter (see `docs/superpowers/plans/`).
+**Current status: generation works for Claude Code, Cursor, Codex, Devin, Kimi, Gemini, Agent Plugins 1.0, and the .agents marketplace descriptor (Droid/Grok/Copilot). Bootstrap injection: Claude Code, Cursor, Copilot, Antigravity (shell hook), Kimi (manifest-native), Gemini (context file). OpenCode, Pi, and Hermes land in Plan 3.**
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 

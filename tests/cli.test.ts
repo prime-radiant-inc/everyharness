@@ -26,11 +26,20 @@ describe('CLI end-to-end', () => {
     execSync('npm run build', { cwd: REPO_ROOT, stdio: 'pipe' })
   }, 60000)
 
-  it('generate exits 0 and reports files generated', () => {
+  it('generate exits 0 and reports 8 harnesses with all adapter names', () => {
     const dir = tmpPluginDir()
     const result = runCli(['generate'], dir)
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Generated')
+    expect(result.stdout).toContain('8 harness')
+    expect(result.stdout).toContain('claude-code')
+    expect(result.stdout).toContain('cursor')
+    expect(result.stdout).toContain('codex')
+    expect(result.stdout).toContain('devin')
+    expect(result.stdout).toContain('kimi')
+    expect(result.stdout).toContain('gemini')
+    expect(result.stdout).toContain('agent-plugins-1.0')
+    expect(result.stdout).toContain('agents-marketplace')
   })
 
   it('validate on a freshly generated plugin exits 0 clean', () => {
@@ -39,6 +48,16 @@ describe('CLI end-to-end', () => {
     const result = runCli(['validate'], dir)
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('validate: clean')
+  })
+
+  it('second generate run prunes nothing and validate exits 0', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    const secondRun = runCli(['generate'], dir)
+    expect(secondRun.status).toBe(0)
+    expect(secondRun.stdout).not.toContain('Pruned')
+    const validateResult = runCli(['validate'], dir)
+    expect(validateResult.status).toBe(0)
   })
 
   it('validate exits 3 and reports drift after the manifest is tampered with', () => {
