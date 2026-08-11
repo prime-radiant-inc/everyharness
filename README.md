@@ -1,7 +1,7 @@
 # everyharness
 
 > [!WARNING]
-> **Work in progress — pre-alpha.** Eleven harness adapters exist today (see Current status below); init/import, generated install docs, the superpowers dogfood test, and container-based install testing are still being built. Not yet published to npm. Everything — including the
+> **Work in progress — pre-alpha.** Eleven harness adapters, init/import, and generated install docs exist today; container-based install testing is still being built. Not yet published to npm. Everything — including the
 > `everyharness.yaml` schema and the generation-manifest format — may change
 > without notice. Don't depend on this yet.
 
@@ -17,12 +17,14 @@ Factory Droid, Grok Build CLI, Antigravity). Generated files are committed;
 ## Usage
 
 ```bash
+npx everyharness init       # scaffold a new plugin
+npx everyharness import     # convert an existing Claude-format plugin
 npx everyharness generate   # emit per-harness files from everyharness.yaml
 npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 ```
 
-**Current status: generation works via 11 adapters covering 13 harnesses — Claude Code, Cursor, Codex, Devin, Kimi, Gemini (incl. TOML commands), OpenCode (incl. commands/agents), Pi, Hermes, Agent Plugins 1.0, and the .agents marketplace descriptor (Droid/Grok/Copilot). Remaining before v1: init/import, generated install docs, superpowers dogfood test, container-based install testing.**
+**Current status: generation works via 11 adapters covering 13 harnesses; `init` scaffolds new plugins, `import` converts existing Claude-format plugins, and every generation emits per-harness install docs plus a support-matrix doc. The superpowers dogfood test regenerates superpowers' hand-maintained manifests (4 of 8 byte-exact, 4 with one documented difference each). Remaining before v1: container-based install testing (Plan 5).**
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 

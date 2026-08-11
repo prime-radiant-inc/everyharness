@@ -127,4 +127,18 @@ describe('CLI end-to-end', () => {
     expect(forced.status).toBe(0)
     expect(forced.stdout).toContain('Generated')
   })
+
+  it('init → generate → validate happy path exits 0 at each step', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cli-e2e-'))
+
+    const initResult = runCli(['init'], dir)
+    expect(initResult.status).toBe(0)
+    expect(initResult.stdout).toContain('created: everyharness.yaml')
+    expect(initResult.stdout).toContain('created: skills/getting-started/SKILL.md')
+    expect(initResult.stdout).toContain('Generated')
+
+    const validateResult = runCli(['validate'], dir)
+    expect(validateResult.status).toBe(0)
+    expect(validateResult.stdout).toContain('validate: clean')
+  })
 })
