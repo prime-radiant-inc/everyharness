@@ -182,8 +182,11 @@ function installDoc(model: PluginModel): string {
 
   const emitted = [
     "`package.json` (shared with the opencode adapter when both are active), declaring the extension and skills directory under its `pi` field",
-    `\`${extensionPath}\`, the Pi extension module that registers the plugin's skills directory and injects bootstrap context`,
   ]
+  const bootstrapClause = config.bootstrap.kind !== 'none'
+    ? 'the Pi extension module that registers the plugin\'s skills directory and injects bootstrap context'
+    : 'the Pi extension module that registers the plugin\'s skills directory'
+  emitted.push(`\`${extensionPath}\`, ${bootstrapClause}`)
   if (config.bootstrap.kind === 'generate') {
     emitted.push(`the generated bootstrap file at \`${GENERATED_BOOTSTRAP_PATH}\``)
   }

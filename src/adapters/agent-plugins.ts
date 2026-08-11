@@ -32,6 +32,14 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+// Check if mcpManifest(model) would return a manifest (used by both emit and installDoc).
+function wouldEmitMcp(model: PluginModel): boolean {
+  const mcp = model.mcp
+  if (mcp === undefined) return false
+  if (!isPlainObject(mcp) || !isPlainObject(mcp.mcpServers)) return false
+  return model.config.components.mcp !== 'mcp.json'
+}
+
 // A stdio command must be a single executable token: either a bare name
 // (no path separators, e.g. "node") or a "./"-prefixed relative path. The
 // spec forbids shell strings (e.g. "node --experimental x.js").
@@ -126,7 +134,7 @@ function mcpManifest(model: PluginModel): { manifest?: Record<string, unknown>; 
 function installDoc(model: PluginModel): string {
   const { config } = model
   const emitted = ['`plugin.json`']
-  if (config.components.mcp !== 'mcp.json' && model.mcp !== undefined) {
+  if (wouldEmitMcp(model)) {
     emitted.push("`mcp.json`, translated from the plugin's MCP server config")
   }
 

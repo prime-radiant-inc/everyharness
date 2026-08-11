@@ -118,11 +118,17 @@ function installDoc(model: PluginModel): string {
     '```',
     '',
     "`GEMINI.md` is loaded automatically as the extension's context file; each command becomes a `/name` slash command. Consult the Gemini CLI extensions docs if this command doesn't match your installed version.",
-    '',
-    '## Caveats',
-    '',
-    '- Gemini extension commands support only a single `{{args}}` placeholder; Claude-style positional arguments (`$1`, `$2`, ...) have no equivalent and are passed through verbatim into the command body.',
   ]
+
+  if (model.commands.length > 0) {
+    lines.push(
+      '',
+      '## Caveats',
+      '',
+      '- Gemini extension commands support only a single `{{args}}` placeholder; Claude-style positional arguments (`$1`, `$2`, ...) have no equivalent and are passed through verbatim into the command body.',
+    )
+  }
+
   return lines.join('\n')
 }
 

@@ -8,6 +8,8 @@ import { adapters } from '../src/adapters/index.js'
 import { claudeCode } from '../src/adapters/claude-code.js'
 import { gemini } from '../src/adapters/gemini.js'
 import { opencode } from '../src/adapters/opencode.js'
+import { pi } from '../src/adapters/pi.js'
+import { agentPlugins } from '../src/adapters/agent-plugins.js'
 import { kimi } from '../src/adapters/kimi.js'
 import { opencodePluginPath } from '../src/bootstrap/node-package.js'
 import type { HarnessAdapter } from '../src/adapters/types.js'
@@ -233,6 +235,68 @@ describe('opencode installDoc (exact content, kitchen-sink model)', () => {
         '',
       ].join('\n'),
     )
+  })
+})
+
+describe('gemini installDoc positional-args caveat conditionality (Finding 3)', () => {
+  it('includes the positional-args caveat when model has commands', () => {
+    const body = gemini.installDoc!(model)
+    expect(body).toContain('positional arguments')
+  })
+
+  it('omits the positional-args caveat when model has no commands', () => {
+    const dir = tmpFixture('name: no-commands\nversion: 1.0.0\ndescription: no commands fixture\n')
+    const noCommandsModel = buildModel(dir)
+    const body = gemini.installDoc!(noCommandsModel)
+    expect(body).not.toContain('positional arguments')
+  })
+})
+
+describe('agent-plugins installDoc mcp condition (Finding 2)', () => {
+  it('does not list mcp.json in "What gets emitted" when mcp config is malformed (no mcpServers key)', () => {
+    const dir = tmpFixture('name: malformed-mcp\nversion: 1.0.0\ndescription: malformed mcp fixture\nmcp:\n  servers: {}\n')
+    const malformedModel = buildModel(dir)
+    const body = agentPlugins.installDoc!(malformedModel)
+    // The installDoc should not list mcp.json in the emitted section when mcpManifest would return nothing
+    const emittedSection = body.split('## Installing')[0]
+    expect(emittedSection).not.toContain('`mcp.json`')
+    expect(emittedSection).toContain('`plugin.json`')
+  })
+
+  it('lists mcp.json in "What gets emitted" for the kitchen-sink model which has valid mcp servers', () => {
+    const body = agentPlugins.installDoc!(model)
+    const emittedSection = body.split('## Installing')[0]
+    expect(emittedSection).toContain('`mcp.json`')
+  })
+})
+
+describe('opencode installDoc bootstrap conditionality (Finding 1)', () => {
+  it('omits "injects bootstrap context" when bootstrap.kind is "none"', () => {
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const noneModel = buildModel(dir)
+    const body = opencode.installDoc!(noneModel)
+    expect(body).not.toContain('injects bootstrap context')
+    expect(body).toContain("registers the plugin's skills directory")
+  })
+
+  it('includes "injects bootstrap context" when bootstrap.kind is "skill" (kitchen-sink model)', () => {
+    const body = opencode.installDoc!(model)
+    expect(body).toContain('injects bootstrap context')
+  })
+})
+
+describe('pi installDoc bootstrap conditionality (Finding 1)', () => {
+  it('omits "injects bootstrap context" when bootstrap.kind is "none"', () => {
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const noneModel = buildModel(dir)
+    const body = pi.installDoc!(noneModel)
+    expect(body).not.toContain('injects bootstrap context')
+    expect(body).toContain("registers the plugin's skills directory")
+  })
+
+  it('includes "injects bootstrap context" when bootstrap.kind is "skill" (kitchen-sink model)', () => {
+    const body = pi.installDoc!(model)
+    expect(body).toContain('injects bootstrap context')
   })
 })
 

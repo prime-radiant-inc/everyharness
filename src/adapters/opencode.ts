@@ -207,8 +207,11 @@ function installDoc(model: PluginModel): string {
 
   const emitted = [
     '`package.json` (shared with the pi adapter when both are active)',
-    `\`${pluginPath}\`, the OpenCode plugin module that registers the plugin's skills directory and injects bootstrap context`,
   ]
+  const bootstrapClause = config.bootstrap.kind !== 'none'
+    ? 'the OpenCode plugin module that registers the plugin\'s skills directory and injects bootstrap context'
+    : 'the OpenCode plugin module that registers the plugin\'s skills directory'
+  emitted.push(`\`${pluginPath}\`, ${bootstrapClause}`)
   if (model.commands.length) {
     emitted.push(
       `a \`.opencode/command/<name>.md\` file for each command (${model.commands.map((c) => `\`${c.name}\``).join(', ')})`,
