@@ -7,9 +7,13 @@ import { checkDrift, type DriftReport } from './manifest.js'
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'schemas')
 
 // Which generated files are schema-checked, and by which vendored schema.
+// .codex-plugin/plugin.json is deliberately NOT schema-validated: SchemaStore's
+// codex schema (checked 2026-08-11) is closed, omits the load-bearing hooks:{}
+// field, and requires portal interface metadata — it rejects known-good manifests
+// (including superpowers' own). Emission correctness is pinned by exact-content
+// tests in tests/adapters/codex.test.ts.
 const SCHEMA_TARGETS: Array<{ file: string; schema: string }> = [
   { file: '.claude-plugin/plugin.json', schema: 'claude-code-plugin-manifest.json' },
-  { file: '.codex-plugin/plugin.json', schema: 'codex-plugin-manifest.json' },
 ]
 
 export interface ValidateResult {
