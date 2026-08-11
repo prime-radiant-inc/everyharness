@@ -89,6 +89,10 @@ function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): Bootstra
   return { kind: 'none' }
 }
 
+function normalizeComponentPath(path: string): string {
+  return path.replace(/\/+$/, '')
+}
+
 export function loadConfig(root: string): EveryharnessConfig {
   const path = join(root, 'everyharness.yaml')
   if (!existsSync(path)) {
@@ -119,11 +123,11 @@ export function loadConfig(root: string): EveryharnessConfig {
     keywords: raw.keywords,
     bootstrap: resolveBootstrap(raw.bootstrap),
     components: {
-      skills: raw.components?.skills ?? 'skills',
-      commands: raw.components?.commands ?? 'commands',
-      agents: raw.components?.agents ?? 'agents',
-      hooks: raw.components?.hooks ?? 'hooks/hooks.json',
-      mcp: raw.components?.mcp ?? 'mcp.json',
+      skills: normalizeComponentPath(raw.components?.skills ?? 'skills'),
+      commands: normalizeComponentPath(raw.components?.commands ?? 'commands'),
+      agents: normalizeComponentPath(raw.components?.agents ?? 'agents'),
+      hooks: normalizeComponentPath(raw.components?.hooks ?? 'hooks/hooks.json'),
+      mcp: normalizeComponentPath(raw.components?.mcp ?? 'mcp.json'),
     },
     harnesses: {
       exclude: raw.harnesses?.exclude ?? [],

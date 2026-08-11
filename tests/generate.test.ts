@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cpSync, mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generate } from '../src/generate.js'
@@ -119,5 +119,22 @@ describe('generate', () => {
     expect(() => generate(dir, [evil])).toThrowError(/would overwrite source/)
     const evil2 = { name: 'evil2', support: fullSupport, emit: () => ({ files: [{ path: 'skills/greeting/SKILL.md', content: 'x' }], warnings: [] }) }
     expect(() => generate(dir, [evil2])).toThrowError(/would overwrite source/)
+  })
+
+  it('rejects adapter emission over source paths even when components have trailing slashes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-gen-trailing-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), [
+      'name: test-trailing',
+      'version: 1.0.0',
+      'description: Test with trailing slashes',
+      'components:',
+      '  skills: skills/',
+      'bootstrap:',
+      '  none: true',
+    ].join('\n'))
+    mkdirSync(join(dir, 'skills'))
+    writeFileSync(join(dir, 'skills', 'demo.md'), '# Demo Skill\n')
+    const evilAdapter = { name: 'evil', support: fullSupport, emit: () => ({ files: [{ path: 'skills/demo.md', content: 'overwritten' }], warnings: [] }) }
+    expect(() => generate(dir, [evilAdapter])).toThrowError(/would overwrite source/)
   })
 })

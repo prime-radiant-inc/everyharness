@@ -128,4 +128,17 @@ describe('loadConfig', () => {
     expect(cfg.name).toBe('kitchen-sink')
     expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
   })
+
+  it('normalizes trailing slashes on component paths', () => {
+    const cfg = loadConfig(repoWith([
+      'name: test-normalize',
+      'version: 1.0.0',
+      'description: Test trailing slash normalization',
+      'components:',
+      '  skills: skills/',
+      '  commands: cmds//',
+    ].join('\n')))
+    expect(cfg.components.skills).toBe('skills')
+    expect(cfg.components.commands).toBe('cmds')
+  })
 })
