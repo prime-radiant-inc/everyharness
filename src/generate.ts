@@ -4,7 +4,7 @@ import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
 import { saveManifest, loadManifest, sha256, type GenerationManifest } from './manifest.js'
 import { adapters, type HarnessAdapter } from './adapters/index.js'
-import { emitDocs } from './docs-emit.js'
+import { emitDocs, injectReadme } from './docs-emit.js'
 import { ConfigError, type EveryharnessConfig } from './config.js'
 
 export const TOOL_VERSION = '0.3.0'
@@ -14,6 +14,7 @@ export interface GenerateResult {
   warnings: string[]
   adaptersRun: string[]
   pruned: string[]
+  readmeInjected: boolean
 }
 
 function isSourcePath(path: string, config: EveryharnessConfig): boolean {
@@ -179,5 +180,11 @@ export function generate(
 
   writeFileSet(root, files)
   saveManifest(root, files, TOOL_VERSION)
-  return { files, warnings, adaptersRun: active.map((a) => a.name), pruned }
+
+  // README.md is a user file (never a GeneratedFile, never manifest-tracked),
+  // so its injection runs after everything else is written and on its own path.
+  const readme = injectReadme(root, model, active)
+  if (readme.warning) warnings.push(readme.warning)
+
+  return { files, warnings, adaptersRun: active.map((a) => a.name), pruned, readmeInjected: readme.injected }
 }

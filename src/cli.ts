@@ -27,6 +27,7 @@ program
     console.log(
       `Generated ${result.files.length} files for ${result.adaptersRun.length} harness(es): ${result.adaptersRun.join(', ')}`,
     )
+    if (result.readmeInjected) console.log('README.md install section updated')
   })
 
 program

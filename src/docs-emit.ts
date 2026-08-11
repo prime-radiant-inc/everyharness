@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { PluginModel } from './model.js'
 import type { HarnessAdapter } from './adapters/types.js'
 import type { FileSet, GeneratedFile } from './fileset.js'
@@ -23,7 +25,9 @@ const DISPLAY_NAMES: Record<string, string> = {
   'agents-marketplace': 'Factory Droid / Grok / Copilot (marketplace descriptor)',
 }
 
-function displayName(adapterName: string): string {
+// Exported so README injection (below) can reuse the same names as the
+// docs/install/<name>.md headings instead of maintaining a second map.
+export function displayName(adapterName: string): string {
   return DISPLAY_NAMES[adapterName] ?? adapterName
 }
 
@@ -82,4 +86,49 @@ export function emitDocs(model: PluginModel, activeAdapters: HarnessAdapter[]): 
   }
   files.push(supportMatrixFile(model))
   return files
+}
+
+const README_START = '<!-- everyharness:install:start -->'
+const README_END = '<!-- everyharness:install:end -->'
+
+function installMatrixTable(activeAdapters: HarnessAdapter[]): string {
+  const rows = activeAdapters
+    .filter((a) => a.installDoc)
+    .map((a) => `| ${displayName(a.name)} | see docs/install/${a.name}.md |`)
+  return ['| Harness | Install |', '|---|---|', ...rows].join('\n')
+}
+
+// Injects the install matrix into the plugin's README.md, between two
+// hand-placed markers. README.md is a user file — never created, never
+// manifest-tracked, never touched by validate — so this runs outside the
+// FileSet/manifest machinery generate() uses for everything else. Absence of
+// either marker, or the markers in the wrong order, is treated the same as
+// "no README": an informational warning, nothing written. `model` is
+// threaded through for parity with emitDocs's signature; the table itself
+// doesn't need it yet.
+export function injectReadme(
+  root: string,
+  model: PluginModel,
+  activeAdapters: HarnessAdapter[],
+): { injected: boolean; warning?: string } {
+  const path = join(root, 'README.md')
+  if (!existsSync(path)) return { injected: false }
+
+  const content = readFileSync(path, 'utf8')
+  const startIdx = content.indexOf(README_START)
+  const endIdx = content.indexOf(README_END)
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
+    return {
+      injected: false,
+      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
+    }
+  }
+
+  const before = content.slice(0, startIdx + README_START.length)
+  const after = content.slice(endIdx)
+  const next = `${before}\n\n${installMatrixTable(activeAdapters)}\n\n${after}`
+
+  if (next === content) return { injected: false }
+  writeFileSync(path, next)
+  return { injected: true }
 }

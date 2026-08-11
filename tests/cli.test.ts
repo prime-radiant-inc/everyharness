@@ -45,6 +45,17 @@ describe('CLI end-to-end', () => {
     expect(result.stdout).toContain('agents-marketplace')
   })
 
+  it('prints "README.md install section updated" when the fixture README has install markers, and omits it on the idempotent second run', () => {
+    const dir = tmpPluginDir()
+    const first = runCli(['generate'], dir)
+    expect(first.status).toBe(0)
+    expect(first.stdout).toContain('README.md install section updated')
+
+    const second = runCli(['generate'], dir)
+    expect(second.status).toBe(0)
+    expect(second.stdout).not.toContain('README.md install section updated')
+  })
+
   it('validate on a freshly generated plugin exits 0 clean', () => {
     const dir = tmpPluginDir()
     runCli(['generate'], dir)

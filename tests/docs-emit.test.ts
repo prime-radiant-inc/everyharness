@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildModel } from '../src/model.js'
-import { emitDocs } from '../src/docs-emit.js'
+import { emitDocs, injectReadme } from '../src/docs-emit.js'
 import { adapters } from '../src/adapters/index.js'
 import { claudeCode } from '../src/adapters/claude-code.js'
 import { gemini } from '../src/adapters/gemini.js'
@@ -316,5 +316,95 @@ describe('kimi installDoc caveat conditionality (representative)', () => {
     const body = kimi.installDoc!(noneModel)
     expect(body).not.toContain('sessionStart')
     expect(body).not.toContain('## Caveats')
+  })
+})
+
+describe('injectReadme', () => {
+  const readmeAdapters = [adapterWithInstallDoc('claude-code', 'body'), adapterWithInstallDoc('kimi', 'body'), adapterWithoutInstallDoc('codex')]
+
+  function tmpReadmeDir(readmeContent?: string): string {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-inject-readme-'))
+    if (readmeContent !== undefined) writeFileSync(join(dir, 'README.md'), readmeContent)
+    return dir
+  }
+
+  it('replaces the region between the markers with a harness/install table, one row per active adapter that implements installDoc', () => {
+    const dir = tmpReadmeDir(
+      ['# Test Plugin', '', '<!-- everyharness:install:start -->', 'placeholder', '<!-- everyharness:install:end -->', '', 'Footer line.', ''].join(
+        '\n',
+      ),
+    )
+    const result = injectReadme(dir, model, readmeAdapters)
+    expect(result).toEqual({ injected: true })
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(
+      [
+        '# Test Plugin',
+        '',
+        '<!-- everyharness:install:start -->',
+        '',
+        '| Harness | Install |',
+        '|---|---|',
+        '| Claude Code | see docs/install/claude-code.md |',
+        '| Kimi Code | see docs/install/kimi.md |',
+        '',
+        '<!-- everyharness:install:end -->',
+        '',
+        'Footer line.',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('is idempotent: a second call reports {injected: false} and leaves the file byte-identical', () => {
+    const dir = tmpReadmeDir(
+      ['# Test Plugin', '', '<!-- everyharness:install:start -->', 'placeholder', '<!-- everyharness:install:end -->', ''].join('\n'),
+    )
+    injectReadme(dir, model, readmeAdapters)
+    const afterFirst = readFileSync(join(dir, 'README.md'), 'utf8')
+
+    const result = injectReadme(dir, model, readmeAdapters)
+
+    expect(result).toEqual({ injected: false })
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(afterFirst)
+  })
+
+  it('warns and leaves the file untouched when the markers are absent', () => {
+    const original = ['# Test Plugin', '', 'No markers here at all.', ''].join('\n')
+    const dir = tmpReadmeDir(original)
+
+    const result = injectReadme(dir, model, readmeAdapters)
+
+    expect(result).toEqual({
+      injected: false,
+      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
+    })
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(original)
+  })
+
+  it('returns no warning and does nothing when README.md does not exist', () => {
+    const dir = tmpReadmeDir()
+    const result = injectReadme(dir, model, readmeAdapters)
+    expect(result).toEqual({ injected: false })
+    expect(existsSync(join(dir, 'README.md'))).toBe(false)
+  })
+
+  it('treats markers in the wrong order (end before start) as absent, warning rather than injecting', () => {
+    const original = [
+      '# Test Plugin',
+      '',
+      '<!-- everyharness:install:end -->',
+      'stuff',
+      '<!-- everyharness:install:start -->',
+      '',
+    ].join('\n')
+    const dir = tmpReadmeDir(original)
+
+    const result = injectReadme(dir, model, readmeAdapters)
+
+    expect(result).toEqual({
+      injected: false,
+      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
+    })
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(original)
   })
 })
