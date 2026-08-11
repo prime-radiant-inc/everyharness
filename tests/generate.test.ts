@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { cpSync, mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -183,14 +183,44 @@ describe('generate', () => {
     const outsideFile = join(parentDir, 'escape.txt')
     writeFileSync(outsideFile, 'should not be deleted')
 
-    // Regenerate with empty adapter — should skip the unsafe entry and warn
-    const result = generate(dir, [{ name: 'empty', support: fullSupport, emit: () => ({ files: [], warnings: [] }) }])
+    try {
+      // Regenerate with empty adapter — should skip the unsafe entry and warn
+      const result = generate(dir, [{ name: 'empty', support: fullSupport, emit: () => ({ files: [], warnings: [] }) }])
 
-    expect(existsSync(outsideFile)).toBe(true)
-    expect(result.pruned).not.toContain('../escape.txt')
-    expect(result.warnings.join('\n')).toMatch(/unsafe path.*\.\.\/escape\.txt/)
+      expect(existsSync(outsideFile)).toBe(true)
+      expect(result.pruned).not.toContain('../escape.txt')
+      expect(result.warnings.join('\n')).toMatch(/unsafe path.*\.\.\/escape\.txt/)
+    } finally {
+      rmSync(outsideFile, { force: true })
+    }
+  })
 
-    // Cleanup
-    rmSync(outsideFile, { force: true })
+  it('refuses to overwrite a pre-existing hand-written file not created by everyharness', () => {
+    const dir = freshFixture()
+    writeFileSync(join(dir, 'GEMINI.md'), 'hand-written content, not generated\n')
+    expect(() => generate(dir)).toThrowError(/refusing to overwrite existing file\(s\).*GEMINI\.md/)
+    expect(readFileSync(join(dir, 'GEMINI.md'), 'utf8')).toBe('hand-written content, not generated\n')
+    expect(existsSync(join(dir, MANIFEST_PATH))).toBe(false)
+  })
+
+  it('overwrites a pre-existing hand-written file when force is set', () => {
+    const dir = freshFixture()
+    writeFileSync(join(dir, 'GEMINI.md'), 'hand-written content, not generated\n')
+    const result = generate(dir, undefined, { force: true })
+    const generatedGemini = result.files.find((f) => f.path === 'GEMINI.md')!
+    expect(readFileSync(join(dir, 'GEMINI.md'), 'utf8')).toBe(generatedGemini.content)
+    expect(readFileSync(join(dir, 'GEMINI.md'), 'utf8')).not.toBe('hand-written content, not generated\n')
+    expect(existsSync(join(dir, MANIFEST_PATH))).toBe(true)
+  })
+
+  it('does not refuse a pre-existing file whose content is byte-identical to what would be generated', () => {
+    const referenceDir = freshFixture()
+    const referenceResult = generate(referenceDir)
+    const generatedGeminiContent = referenceResult.files.find((f) => f.path === 'GEMINI.md')!.content
+
+    const dir = freshFixture()
+    writeFileSync(join(dir, 'GEMINI.md'), generatedGeminiContent)
+    expect(() => generate(dir)).not.toThrow()
+    expect(existsSync(join(dir, MANIFEST_PATH))).toBe(true)
   })
 })

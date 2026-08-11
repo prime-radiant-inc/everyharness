@@ -16,8 +16,9 @@ program
   .command('generate')
   .description('Generate per-harness plugin files from everyharness.yaml')
   .option('--dir <path>', 'plugin root directory', '.')
-  .action((opts: { dir: string }) => {
-    const result = generate(opts.dir)
+  .option('--force', 'overwrite existing files not created by everyharness', false)
+  .action((opts: { dir: string; force: boolean }) => {
+    const result = generate(opts.dir, undefined, { force: opts.force })
     for (const warning of result.warnings) console.warn(`warning: ${warning}`)
     if (result.pruned.length > 0) {
       console.log(`Pruned ${result.pruned.length} stale file(s)`)

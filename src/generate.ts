@@ -24,7 +24,11 @@ function isSourcePath(path: string, config: EveryharnessConfig): boolean {
   return false
 }
 
-export function generate(root: string, adapterList: HarnessAdapter[] = adapters): GenerateResult {
+export function generate(
+  root: string,
+  adapterList: HarnessAdapter[] = adapters,
+  opts: { force?: boolean } = {},
+): GenerateResult {
   const model = buildModel(root)
   const excluded = new Set(model.config.harnesses.exclude)
   const active = adapterList.filter((a) => !excluded.has(a.name))
@@ -54,10 +58,31 @@ export function generate(root: string, adapterList: HarnessAdapter[] = adapters)
   const files: FileSet = [...byPath.values()].map((v) => v.file)
 
   const prior = loadManifest(root)
+  const rootAbs = resolve(root)
+
+  // Refuse to clobber files that already exist on disk but weren't produced by a
+  // prior everyharness run — e.g. a hand-written GEMINI.md dropped in before the
+  // first `generate`. A file absent from the prior manifest (or with no prior
+  // manifest at all) is only a conflict if its content actually differs from what
+  // we're about to write; byte-identical files are left alone so a first run
+  // right after cloning a repo that already contains generated output succeeds.
+  const conflicts: string[] = []
+  for (const file of files) {
+    const abs = resolve(root, file.path)
+    if (!existsSync(abs)) continue
+    if (prior && Object.prototype.hasOwnProperty.call(prior.files, file.path)) continue
+    if (readFileSync(abs, 'utf8') === file.content) continue
+    conflicts.push(file.path)
+  }
+  if (conflicts.length > 0 && !opts.force) {
+    throw new ConfigError(
+      `refusing to overwrite existing file(s) not created by everyharness: ${conflicts.join(', ')} (re-run with --force to overwrite)`,
+    )
+  }
+
   const pruned: string[] = []
   if (prior) {
     const newPaths = new Set(files.map((f) => f.path))
-    const rootAbs = resolve(root)
     for (const [path, entry] of Object.entries(prior.files)) {
       if (newPaths.has(path)) continue
 

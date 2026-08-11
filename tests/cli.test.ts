@@ -75,4 +75,17 @@ describe('CLI end-to-end', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('error:')
   })
+
+  it('generate refuses a pre-existing hand-written file, and --force overwrites it', () => {
+    const dir = tmpPluginDir()
+    writeFileSync(join(dir, 'GEMINI.md'), 'hand-written content, not generated\n')
+
+    const refused = runCli(['generate'], dir)
+    expect(refused.status).toBe(1)
+    expect(refused.stderr).toContain('refusing to overwrite')
+
+    const forced = runCli(['generate', '--force'], dir)
+    expect(forced.status).toBe(0)
+    expect(forced.stdout).toContain('Generated')
+  })
 })
