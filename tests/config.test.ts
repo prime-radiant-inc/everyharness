@@ -23,7 +23,7 @@ describe('loadConfig', () => {
       commands: 'commands',
       agents: 'agents',
       hooks: 'hooks/hooks.json',
-      mcp: 'mcp.json',
+      mcp: '.mcp.json',
     })
     expect(cfg.harnesses).toEqual({ exclude: [], overrides: {} })
   })

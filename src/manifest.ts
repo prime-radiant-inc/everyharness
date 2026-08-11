@@ -62,7 +62,8 @@ export interface DriftReport {
   clean: boolean
 }
 
-export function checkDrift(root: string): DriftReport {
+export function checkDrift(root: string, opts: { checkExecBit?: boolean } = {}): DriftReport {
+  const checkExecBit = opts.checkExecBit ?? process.platform !== 'win32'
   const manifest = loadManifest(root)
   if (!manifest) {
     throw new ConfigError(`no generation manifest at ${MANIFEST_PATH} — run \`everyharness generate\` first`)
@@ -74,7 +75,7 @@ export function checkDrift(root: string): DriftReport {
     if (!existsSync(filePath)) missing.push(path)
     else if (
       sha256(readFileSync(filePath, 'utf8')) !== entry.sha256 ||
-      isExecutable(filePath) !== Boolean(entry.executable)
+      (checkExecBit && isExecutable(filePath) !== Boolean(entry.executable))
     )
       modified.push(path)
   }

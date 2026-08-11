@@ -42,7 +42,6 @@ exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`
   "keywords": [
     "fixture"
   ],
-  "mcpServers": "./mcp.json",
   "homepage": "https://example.com/kitchen-sink"
 }
 "

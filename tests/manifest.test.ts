@@ -105,6 +105,16 @@ describe('manifest + drift', () => {
     expect(report.modified.sort()).toEqual(['gen/one.txt', 'hooks/session-start'])
   })
 
+  it('skips exec-bit drift when checkExecBit is false', () => {
+    const dir = tmp()
+    const files = [{ path: 'hooks/run', content: '#!/bin/bash\n', executable: true }]
+    writeFileSet(dir, files)
+    saveManifest(dir, files, '0.1.0')
+    chmodSync(join(dir, 'hooks/run'), 0o644)
+    expect(checkDrift(dir).modified).toEqual(['hooks/run'])
+    expect(checkDrift(dir, { checkExecBit: false }).modified).toEqual([])
+  })
+
   it('detects hand-edits and deletions', () => {
     const dir = tmp()
     writeFileSet(dir, files)

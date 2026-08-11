@@ -31,7 +31,6 @@ describe('claude-code adapter', () => {
       repository: 'https://github.com/prime-radiant-inc/everyharness',
       keywords: ['fixture'],
       homepage: 'https://example.com/kitchen-sink',
-      mcpServers: './mcp.json'
     })
   })
 

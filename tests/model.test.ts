@@ -77,7 +77,7 @@ describe('buildModel', () => {
   it('reports malformed mcp JSON as a ConfigError', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-model-'))
     writeFileSync(join(dir, 'everyharness.yaml'), 'name: bad-mcp\nversion: 1.0.0\ndescription: bad mcp\n')
-    writeFileSync(join(dir, 'mcp.json'), '{oops')
+    writeFileSync(join(dir, '.mcp.json'), '{oops')
     expect(() => buildModel(dir)).toThrowError(/not valid JSON/)
   })
 })

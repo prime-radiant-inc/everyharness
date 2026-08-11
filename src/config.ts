@@ -127,7 +127,7 @@ export function loadConfig(root: string): EveryharnessConfig {
       commands: normalizeComponentPath(raw.components?.commands ?? 'commands'),
       agents: normalizeComponentPath(raw.components?.agents ?? 'agents'),
       hooks: normalizeComponentPath(raw.components?.hooks ?? 'hooks/hooks.json'),
-      mcp: normalizeComponentPath(raw.components?.mcp ?? 'mcp.json'),
+      mcp: normalizeComponentPath(raw.components?.mcp ?? '.mcp.json'),
     },
     harnesses: {
       exclude: raw.harnesses?.exclude ?? [],
