@@ -6,10 +6,11 @@ import { devin } from './devin.js'
 import { kimi } from './kimi.js'
 import { gemini } from './gemini.js'
 import { agentPlugins } from './agent-plugins.js'
+import { agentsMarketplace } from './agents-marketplace.js'
 
 export type { SupportLevel, ComponentSupport, EmitResult, HarnessAdapter } from './types.js'
 
-export const adapters: HarnessAdapter[] = [claudeCode, cursor, codex, devin, kimi, gemini, agentPlugins]
+export const adapters: HarnessAdapter[] = [claudeCode, cursor, codex, devin, kimi, gemini, agentPlugins, agentsMarketplace]
 
 export function getAdapter(name: string): HarnessAdapter | undefined {
   return adapters.find((a) => a.name === name)

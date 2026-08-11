@@ -1,7 +1,29 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`] = `
-"=== .claude-plugin/marketplace.json ===
+"=== .agents/plugins/marketplace.json ===
+{
+  "name": "kitchen-sink-dev",
+  "interface": {
+    "displayName": "kitchen-sink"
+  },
+  "plugins": [
+    {
+      "name": "kitchen-sink",
+      "source": {
+        "source": "url",
+        "url": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+
+=== .claude-plugin/marketplace.json ===
 {
   "name": "kitchen-sink-dev",
   "description": "Development marketplace for kitchen-sink",
