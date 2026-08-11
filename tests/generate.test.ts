@@ -195,6 +195,20 @@ describe('generate', () => {
     }
   })
 
+  it('recovers from a corrupt manifest instead of dead-ending, and rewrites it valid', () => {
+    const dir = freshFixture()
+    generate(dir)
+    writeFileSync(join(dir, MANIFEST_PATH), 'null')
+
+    const result = generate(dir) // content is unchanged, so no --force is needed
+
+    expect(result.warnings.join('\n')).toMatch(/unreadable generation manifest/)
+    expect(checkDrift(dir).clean).toBe(true)
+    const manifest = JSON.parse(readFileSync(join(dir, MANIFEST_PATH), 'utf8'))
+    expect(manifest.schema).toBe(1)
+    expect(Object.keys(manifest.files).length).toBeGreaterThan(0)
+  })
+
   it('refuses to overwrite a pre-existing hand-written file not created by everyharness', () => {
     const dir = freshFixture()
     writeFileSync(join(dir, 'GEMINI.md'), 'hand-written content, not generated\n')

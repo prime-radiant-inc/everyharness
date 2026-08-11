@@ -2,7 +2,7 @@ import { rmSync, rmdirSync, readdirSync, readFileSync, existsSync } from 'node:f
 import { dirname, join, resolve, isAbsolute, sep } from 'node:path'
 import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
-import { saveManifest, loadManifest, sha256 } from './manifest.js'
+import { saveManifest, loadManifest, sha256, type GenerationManifest } from './manifest.js'
 import { adapters, type HarnessAdapter } from './adapters/index.js'
 import { ConfigError, type EveryharnessConfig } from './config.js'
 
@@ -57,7 +57,18 @@ export function generate(
   }
   const files: FileSet = [...byPath.values()].map((v) => v.file)
 
-  const prior = loadManifest(root)
+  // A corrupt manifest shouldn't dead-end generate the way it does validate:
+  // recover by treating this run as if there were no prior manifest at all, and
+  // skip pruning (we have no record of what to prune). validate() still fails
+  // loudly on the same corruption — regenerating is the recovery path.
+  let prior: GenerationManifest | undefined
+  try {
+    prior = loadManifest(root)
+  } catch (e) {
+    if (!(e instanceof ConfigError)) throw e
+    warnings.push(`ignoring unreadable generation manifest (${e.message}); skipping prune for this run`)
+    prior = undefined
+  }
   const rootAbs = resolve(root)
 
   // Refuse to clobber files that already exist on disk but weren't produced by a
@@ -66,6 +77,12 @@ export function generate(
   // manifest at all) is only a conflict if its content actually differs from what
   // we're about to write; byte-identical files are left alone so a first run
   // right after cloning a repo that already contains generated output succeeds.
+  // Note: when the manifest is unreadable, prior is undefined here too, so every
+  // pre-existing generated file looks "not created by everyharness" to the check
+  // below. Its byte-identical allowance still lets unchanged files pass without
+  // --force; files that actually differ correctly require --force, since we can
+  // no longer tell "known-generated but hand-edited" apart from "genuinely
+  // user-authored" once the manifest recording that is gone.
   const conflicts: string[] = []
   for (const file of files) {
     const abs = resolve(root, file.path)
