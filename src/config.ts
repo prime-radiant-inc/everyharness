@@ -26,13 +26,21 @@ const authorSchema = z.object({
 // Component paths: [A-Za-z0-9._-]+ segments joined by /, normalized to strip
 // trailing slashes before validation. Regex rejects quotes, backslashes, spaces,
 // shell metacharacters — ensuring safe substitution into emitted Python/JS/TS.
+// The charset alone permits a `.` or `..` segment (both are valid runs of
+// dots), which would let a path escape the plugin root -- rejected separately
+// below rather than folded into the charset regex.
 const componentPath = z
   .preprocess(
     (val) => (typeof val === 'string' ? val.replace(/\/+$/, '') : val),
-    z.string().regex(
-      /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/,
-      'path segments may contain only letters, digits, dot, underscore, hyphen',
-    ),
+    z
+      .string()
+      .regex(
+        /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/,
+        'path segments may contain only letters, digits, dot, underscore, hyphen',
+      )
+      .refine((s) => !s.split('/').includes('.') && !s.split('/').includes('..'), {
+        message: 'path segments may not be . or ..',
+      }),
   )
   .optional()
 

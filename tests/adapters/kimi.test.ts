@@ -44,13 +44,16 @@ describe('kimi adapter', () => {
   })
 
   it('declares expected support levels', () => {
+    // bootstrap is 'partial', not 'full': kimi's sessionStart only supports a
+    // named bootstrap skill -- bootstrap.generate mode is not supported (see
+    // the bootstrap.generate warning test below).
     expect(kimi.support).toEqual({
       skills: 'full',
       commands: 'none',
       agents: 'none',
       hooks: 'none',
       mcp: 'none',
-      bootstrap: 'full',
+      bootstrap: 'partial',
     })
   })
 })

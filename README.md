@@ -22,7 +22,7 @@ npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 ```
 
-**Current status: generation works for all 12+ target harnesses — Claude Code, Cursor, Codex, Devin, Kimi, Gemini (incl. TOML commands), OpenCode (incl. commands/agents), Pi, Hermes, Agent Plugins 1.0, and the .agents marketplace descriptor (Droid/Grok/Copilot). Remaining before v1: init/import, generated install docs, superpowers dogfood test, container-based install testing.**
+**Current status: generation works via 11 adapters covering 13 harnesses — Claude Code, Cursor, Codex, Devin, Kimi, Gemini (incl. TOML commands), OpenCode (incl. commands/agents), Pi, Hermes, Agent Plugins 1.0, and the .agents marketplace descriptor (Droid/Grok/Copilot). Remaining before v1: init/import, generated install docs, superpowers dogfood test, container-based install testing.**
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 

@@ -191,4 +191,17 @@ describe('loadConfig', () => {
       'name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: \'my skills\'\n'
     ))).toThrowError(ConfigError)
   })
+
+  it('rejects . and .. path segments (traversal), even though the charset regex alone would allow them', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: ../../elsewhere\n'
+    ))).toThrowError(ConfigError)
+    try {
+      loadConfig(repoWith('name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: ../../elsewhere\n'))
+    } catch (e) {
+      const err = e as ConfigError
+      expect(err.details.join('\n')).toContain('components.skills')
+      expect(err.details.join('\n')).toContain('path segments may not be . or ..')
+    }
+  })
 })

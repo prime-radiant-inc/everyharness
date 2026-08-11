@@ -23,7 +23,7 @@ export const kimi: HarnessAdapter = {
     agents: 'none',
     hooks: 'none',
     mcp: 'none',
-    bootstrap: 'full',
+    bootstrap: 'partial', // sessionStart only supports a named bootstrap skill; bootstrap.generate is unsupported
   },
   emit(model: PluginModel): EmitResult {
     const { config } = model
