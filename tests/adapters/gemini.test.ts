@@ -76,6 +76,27 @@ describe('gemini adapter with harnesses.overrides.gemini', () => {
     const manifest = JSON.parse(result.files.find((f) => f.path === 'gemini-extension.json')!.content)
     expect(manifest.contextFileName).toBe('CUSTOM.md')
   })
+
+  it('warns that a contextFileName override does not match the emitted GEMINI.md', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-gemini-override-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: override-demo',
+        'version: 1.0.0',
+        'description: override fixture for gemini extension metadata',
+        'harnesses:',
+        '  overrides:',
+        '    gemini:',
+        '      contextFileName: CUSTOM.md',
+      ].join('\n'),
+    )
+    const overrideModel = buildModel(dir)
+    const result = gemini.emit(overrideModel)
+    expect(result.warnings).toContain(
+      'contextFileName override "CUSTOM.md" does not match the emitted GEMINI.md; the harness will look for a missing file',
+    )
+  })
 })
 
 describe('gemini adapter without a bootstrap skill', () => {

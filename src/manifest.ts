@@ -32,7 +32,7 @@ export function loadManifest(root: string): GenerationManifest | undefined {
   try {
     manifest = JSON.parse(readFileSync(abs, 'utf8'))
   } catch (e) {
-    throw new ConfigError(`${MANIFEST_PATH} is not valid JSON: ${(e as Error).message}`)
+    throw new ConfigError(`${MANIFEST_PATH} is not valid JSON: ${(e as Error).message}`, [], { cause: e })
   }
   const m = manifest as GenerationManifest
   if (typeof m !== 'object' || m === null || typeof m.files !== 'object' || m.files === null) {

@@ -227,6 +227,44 @@ describe('generate', () => {
     expect(existsSync(join(dir, MANIFEST_PATH))).toBe(true)
   })
 
+  it('warns about a stray root mcp.json when the MCP source default was not customized away from .mcp.json', () => {
+    const dir = freshFixture()
+    rmSync(join(dir, '.mcp.json'))
+    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: {} }))
+    const result = generate(dir)
+    expect(result.warnings).toContain(
+      'found mcp.json at the plugin root; the source MCP default is .mcp.json — rename it if it is your MCP config',
+    )
+  })
+
+  it('does not warn about mcp.json for the kitchen-sink fixture, where agent-plugins-1.0 legitimately emits it', () => {
+    const dir = freshFixture()
+    const result = generate(dir)
+    expect(result.warnings.some((w) => w.includes('found mcp.json at the plugin root'))).toBe(false)
+  })
+
+  it('does not warn about a stray root mcp.json when components.mcp is explicitly set to mcp.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-gen-mcp-explicit-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), [
+      'name: explicit-mcp-json',
+      'version: 1.0.0',
+      'description: components.mcp explicitly set to mcp.json',
+      'components:',
+      '  mcp: mcp.json',
+      'bootstrap:',
+      '  none: true',
+      'harnesses:',
+      // agent-plugins-1.0 would otherwise try to emit its own translated
+      // mcp.json at this same path and collide with the source file — excluded
+      // here so the test isolates the stray-warning guard, not that unrelated
+      // pre-existing overwrite-source-path behavior.
+      '  exclude: [agent-plugins-1.0]',
+    ].join('\n'))
+    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: {} }))
+    const result = generate(dir)
+    expect(result.warnings.some((w) => w.includes('found mcp.json at the plugin root'))).toBe(false)
+  })
+
   it('does not refuse a pre-existing file whose content is byte-identical to what would be generated', () => {
     const referenceDir = freshFixture()
     const referenceResult = generate(referenceDir)

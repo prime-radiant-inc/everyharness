@@ -1,4 +1,4 @@
-import { rmSync, rmdirSync, readdirSync, readFileSync, existsSync } from 'node:fs'
+import { rmSync, rmdirSync, readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, resolve, isAbsolute, sep } from 'node:path'
 import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
@@ -70,6 +70,26 @@ export function generate(
     prior = undefined
   }
   const rootAbs = resolve(root)
+
+  // A plain `mcp.json` at the plugin root is the Agent Plugins 1.0 on-disk
+  // name, not everyharness's MCP source default (`.mcp.json`). If one is
+  // sitting there unrecognized — not something an adapter emitted this run,
+  // and not already known from a prior generation (in which case it's either
+  // legitimately ours or about to be pruned as stale below) — it's very
+  // likely a misnamed source config the user meant to write to `.mcp.json`.
+  // Only applies when the user hasn't customized components.mcp away from
+  // that default; an explicit `components.mcp: mcp.json` means this path IS
+  // the intended source, not a stray file.
+  if (model.config.components.mcp === '.mcp.json') {
+    const strayAbs = resolve(root, 'mcp.json')
+    const inNewFiles = files.some((f) => f.path === 'mcp.json')
+    const inPriorManifest = prior !== undefined && Object.prototype.hasOwnProperty.call(prior.files, 'mcp.json')
+    if (!inNewFiles && !inPriorManifest && existsSync(strayAbs) && statSync(strayAbs).isFile()) {
+      warnings.push(
+        'found mcp.json at the plugin root; the source MCP default is .mcp.json — rename it if it is your MCP config',
+      )
+    }
+  }
 
   // Refuse to clobber files that already exist on disk but weren't produced by a
   // prior everyharness run — e.g. a hand-written GEMINI.md dropped in before the

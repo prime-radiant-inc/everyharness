@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { execSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, cpSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, cpSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -48,6 +48,25 @@ describe('CLI end-to-end', () => {
     const result = runCli(['validate'], dir)
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('validate: clean')
+  })
+
+  it('prints one "pruned: <path>" line per removed file before the summary count line', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    const yamlPath = join(dir, 'everyharness.yaml')
+    const yaml = readFileSync(yamlPath, 'utf8')
+    writeFileSync(yamlPath, yaml.replace('harnesses:\n', 'harnesses:\n  exclude: [gemini]\n'))
+
+    const result = runCli(['generate'], dir)
+
+    expect(result.status).toBe(0)
+    const geminiExtIndex = result.stdout.indexOf('pruned: gemini-extension.json')
+    const geminiMdIndex = result.stdout.indexOf('pruned: GEMINI.md')
+    const countIndex = result.stdout.indexOf('Pruned 2 stale file(s)')
+    expect(geminiExtIndex).toBeGreaterThanOrEqual(0)
+    expect(geminiMdIndex).toBeGreaterThanOrEqual(0)
+    expect(countIndex).toBeGreaterThan(geminiExtIndex)
+    expect(countIndex).toBeGreaterThan(geminiMdIndex)
   })
 
   it('second generate run prunes nothing and validate exits 0', () => {

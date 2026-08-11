@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { buildModel } from '../../src/model.js'
 import { cursor } from '../../src/adapters/cursor.js'
 import { claudeCode } from '../../src/adapters/claude-code.js'
@@ -75,5 +78,45 @@ describe('cursor adapter', () => {
       mcp: 'none',
       bootstrap: 'full',
     })
+  })
+})
+
+describe('cursor adapter with harnesses.overrides.cursor', () => {
+  it('overrides displayName via harnesses.overrides.cursor', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-override-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: override-demo',
+        'version: 1.0.0',
+        'description: override fixture for cursor displayName',
+        'bootstrap:',
+        '  none: true',
+        'harnesses:',
+        '  overrides:',
+        '    cursor:',
+        '      displayName: Fancy',
+      ].join('\n'),
+    )
+    const overrideModel = buildModel(dir)
+    const result = cursor.emit(overrideModel)
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
+    expect(manifest.displayName).toBe('Fancy')
+  })
+})
+
+describe('cursor adapter with bootstrap.generate', () => {
+  it('warns that generate falls back to none and emits no hook files', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-generate-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+    )
+    const generateModel = buildModel(dir)
+    const result = cursor.emit(generateModel)
+    expect(result.warnings).toContain('bootstrap.generate is not implemented until Plan 3; falling back to none')
+    expect(result.files.some((f) => f.path.startsWith('hooks/everyharness/'))).toBe(false)
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
+    expect(manifest.hooks).toBeUndefined()
   })
 })

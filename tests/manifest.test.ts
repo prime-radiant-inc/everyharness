@@ -139,6 +139,18 @@ describe('manifest + drift', () => {
     expect(() => checkDrift(dir)).toThrowError(/not valid JSON/)
   })
 
+  it('chains the original SyntaxError as .cause for a corrupt manifest file', () => {
+    const dir = tmp()
+    mkdirSync(join(dir, '.everyharness'), { recursive: true })
+    writeFileSync(join(dir, MANIFEST_PATH), 'not json')
+    try {
+      checkDrift(dir)
+      expect.unreachable('checkDrift should have thrown')
+    } catch (e) {
+      expect((e as ConfigError).cause).toBeInstanceOf(SyntaxError)
+    }
+  })
+
   it('reports a manifest with the wrong shape as a ConfigError', () => {
     const dir = tmp()
     mkdirSync(join(dir, '.everyharness'), { recursive: true })

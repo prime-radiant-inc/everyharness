@@ -104,7 +104,10 @@ function translateMcpServer(name: string, source: unknown): { entry?: Record<str
 
 function mcpManifest(model: PluginModel): { manifest?: Record<string, unknown>; warnings: string[] } {
   const mcp = model.mcp
-  if (!isPlainObject(mcp) || !isPlainObject(mcp.mcpServers)) return { warnings: [] }
+  if (mcp === undefined) return { warnings: [] }
+  if (!isPlainObject(mcp) || !isPlainObject(mcp.mcpServers)) {
+    return { warnings: ['mcp config has no mcpServers object; nothing translated for agent-plugins-1.0'] }
+  }
 
   const warnings: string[] = []
   const mcpServers: Record<string, unknown> = {}

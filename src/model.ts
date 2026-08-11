@@ -39,7 +39,7 @@ function readSkills(root: string, skillsDir: string): SkillRef[] {
       return {
         name: typeof data.name === 'string' ? data.name : entry,
         dir: `${skillsDir}/${entry}`,
-        description: typeof data.description === 'string' ? data.description : '',
+        description: stringOr(data, 'description') ?? '',
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -65,6 +65,10 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+function stringOr(data: Record<string, unknown>, key: string): string | undefined {
+  return typeof data[key] === 'string' ? (data[key] as string) : undefined
+}
+
 function readJsonIfPresent(root: string, rel: string): unknown {
   const abs = join(root, rel)
   if (!existsSync(abs)) return undefined
@@ -72,7 +76,7 @@ function readJsonIfPresent(root: string, rel: string): unknown {
   try {
     parsed = JSON.parse(readFileSync(abs, 'utf8'))
   } catch (e) {
-    throw new ConfigError(`${rel} is not valid JSON: ${(e as Error).message}`)
+    throw new ConfigError(`${rel} is not valid JSON: ${(e as Error).message}`, [], { cause: e })
   }
   // Guards two downstream failure modes: `null` crashes mergedClaudeHooks, and an
   // array silently drops the bootstrap entry when JSON.stringify-d back out.
@@ -88,13 +92,15 @@ export function buildModel(root: string): PluginModel {
   const commands = readMarkdownComponents(root, config.components.commands).map((c) => ({
     name: c.name,
     path: c.path,
-    description: typeof c.data.description === 'string' ? c.data.description : undefined,
+    description: stringOr(c.data, 'description'),
   }))
-  const agents = readMarkdownComponents(root, config.components.agents).map((a) => ({
-    name: typeof a.data.name === 'string' ? a.data.name : a.name,
-    path: a.path,
-    description: typeof a.data.description === 'string' ? a.data.description : undefined,
-  }))
+  const agents = readMarkdownComponents(root, config.components.agents)
+    .map((a) => ({
+      name: typeof a.data.name === 'string' ? a.data.name : a.name,
+      path: a.path,
+      description: stringOr(a.data, 'description'),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
   const model: PluginModel = {
     root,
     config,

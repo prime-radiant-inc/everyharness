@@ -21,6 +21,7 @@ program
     const result = generate(opts.dir, undefined, { force: opts.force })
     for (const warning of result.warnings) console.warn(`warning: ${warning}`)
     if (result.pruned.length > 0) {
+      for (const path of result.pruned) console.log(`pruned: ${path}`)
       console.log(`Pruned ${result.pruned.length} stale file(s)`)
     }
     console.log(

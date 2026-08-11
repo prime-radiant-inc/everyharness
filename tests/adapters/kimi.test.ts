@@ -77,6 +77,21 @@ describe('kimi adapter with harnesses.overrides.kimi', () => {
   })
 })
 
+describe('kimi adapter with bootstrap.none', () => {
+  it('emits no sessionStart key and no bootstrap warning', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-none-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-bootstrap\nversion: 1.0.0\ndescription: bootstrap none fixture\nbootstrap:\n  none: true\n',
+    )
+    const noneModel = buildModel(dir)
+    const result = kimi.emit(noneModel)
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.kimi-plugin/plugin.json')!.content)
+    expect('sessionStart' in manifest).toBe(false)
+    expect(result.warnings).toEqual([])
+  })
+})
+
 describe('kimi adapter with bootstrap.generate', () => {
   it('warns that generate falls back to none and emits no sessionStart', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-generate-'))

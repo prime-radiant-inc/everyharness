@@ -141,6 +141,21 @@ describe('agent-plugins-1.0 without an mcp source', () => {
   })
 })
 
+describe('agent-plugins-1.0 with malformed mcpServers', () => {
+  it('warns and emits no mcp.json when the mcp source has no mcpServers object', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-ap-badmcp-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: bad-mcp-shape\nversion: 1.0.0\ndescription: malformed mcpServers fixture\nbootstrap:\n  none: true\n',
+    )
+    writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ servers: {} }))
+    const badMcpModel = buildModel(dir)
+    const result = agentPlugins.emit(badMcpModel)
+    expect(result.files.some((f) => f.path === 'mcp.json')).toBe(false)
+    expect(result.warnings).toContain('mcp config has no mcpServers object; nothing translated for agent-plugins-1.0')
+  })
+})
+
 describe('agent-plugins-1.0 with a non-default skills path', () => {
   it('warns that the custom skills directory will not be discovered', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-skills-'))

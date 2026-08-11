@@ -117,6 +117,18 @@ describe('loadConfig', () => {
     }
   })
 
+  it('chains the original parse error as .cause for invalid YAML', () => {
+    try {
+      loadConfig(repoWith('name: [unclosed\n'))
+      expect.unreachable('loadConfig should have thrown')
+    } catch (e) {
+      const err = e as ConfigError
+      expect(err.cause).toBeInstanceOf(Error)
+      expect((err.cause as Error).message).toBeTruthy()
+      expect(err.message).toContain((err.cause as Error).message)
+    }
+  })
+
   it('rejects an empty bootstrap block', () => {
     expect(() => loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap: {}\n'

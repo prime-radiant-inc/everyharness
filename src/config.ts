@@ -5,8 +5,8 @@ import { z } from 'zod'
 
 export class ConfigError extends Error {
   details: string[]
-  constructor(message: string, details: string[] = []) {
-    super(details.length ? `${message}\n  - ${details.join('\n  - ')}` : message)
+  constructor(message: string, details: string[] = [], opts: { cause?: unknown } = {}) {
+    super(details.length ? `${message}\n  - ${details.join('\n  - ')}` : message, { cause: opts.cause })
     this.name = 'ConfigError'
     this.details = details
   }
@@ -102,7 +102,7 @@ export function loadConfig(root: string): EveryharnessConfig {
   try {
     doc = parse(readFileSync(path, 'utf8'))
   } catch (e) {
-    throw new ConfigError(`everyharness.yaml is not valid YAML: ${(e as Error).message}`)
+    throw new ConfigError(`everyharness.yaml is not valid YAML: ${(e as Error).message}`, [], { cause: e })
   }
   const parsed = rawSchema.safeParse(doc)
   if (!parsed.success) {
