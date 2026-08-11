@@ -23,6 +23,19 @@ const authorSchema = z.object({
   url: z.string().optional(),
 })
 
+// Component paths: [A-Za-z0-9._-]+ segments joined by /, normalized to strip
+// trailing slashes before validation. Regex rejects quotes, backslashes, spaces,
+// shell metacharacters — ensuring safe substitution into emitted Python/JS/TS.
+const componentPath = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.replace(/\/+$/, '') : val),
+    z.string().regex(
+      /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/,
+      'path segments may contain only letters, digits, dot, underscore, hyphen',
+    ),
+  )
+  .optional()
+
 const rawSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'lowercase alphanumerics and hyphens'),
   version: z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'semver, e.g. 1.2.3'),
@@ -41,11 +54,11 @@ const rawSchema = z.object({
     .optional(),
   components: z
     .object({
-      skills: z.string().optional(),
-      commands: z.string().optional(),
-      agents: z.string().optional(),
-      hooks: z.string().optional(),
-      mcp: z.string().optional(),
+      skills: componentPath,
+      commands: componentPath,
+      agents: componentPath,
+      hooks: componentPath,
+      mcp: componentPath,
     })
     .optional(),
   harnesses: z
@@ -89,10 +102,6 @@ function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): Bootstra
   return { kind: 'none' }
 }
 
-function normalizeComponentPath(path: string): string {
-  return path.replace(/\/+$/, '')
-}
-
 export function loadConfig(root: string): EveryharnessConfig {
   const path = join(root, 'everyharness.yaml')
   if (!existsSync(path)) {
@@ -123,11 +132,11 @@ export function loadConfig(root: string): EveryharnessConfig {
     keywords: raw.keywords,
     bootstrap: resolveBootstrap(raw.bootstrap),
     components: {
-      skills: normalizeComponentPath(raw.components?.skills ?? 'skills'),
-      commands: normalizeComponentPath(raw.components?.commands ?? 'commands'),
-      agents: normalizeComponentPath(raw.components?.agents ?? 'agents'),
-      hooks: normalizeComponentPath(raw.components?.hooks ?? 'hooks/hooks.json'),
-      mcp: normalizeComponentPath(raw.components?.mcp ?? '.mcp.json'),
+      skills: raw.components?.skills ?? 'skills',
+      commands: raw.components?.commands ?? 'commands',
+      agents: raw.components?.agents ?? 'agents',
+      hooks: raw.components?.hooks ?? 'hooks/hooks.json',
+      mcp: raw.components?.mcp ?? '.mcp.json',
     },
     harnesses: {
       exclude: raw.harnesses?.exclude ?? [],

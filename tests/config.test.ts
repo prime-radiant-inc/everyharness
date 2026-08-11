@@ -153,4 +153,42 @@ describe('loadConfig', () => {
     expect(cfg.components.skills).toBe('skills')
     expect(cfg.components.commands).toBe('cmds')
   })
+
+  it('rejects component paths with quotes, rejecting via components.skills', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: \'weird"dir\'\n'
+    ))).toThrowError(ConfigError)
+    try {
+      loadConfig(repoWith('name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: \'weird"dir\'\n'))
+    } catch (e) {
+      const err = e as ConfigError
+      expect(err.details.join('\n')).toContain('components.skills')
+      expect(err.details.join('\n')).toContain('path segments may contain only')
+    }
+  })
+
+  it('accepts multi-segment component paths', () => {
+    const cfg = loadConfig(repoWith([
+      'name: multi-seg',
+      'version: 1.0.0',
+      'description: Multi-segment paths',
+      'components:',
+      '  skills: my/skills',
+      '  commands: my/commands/here',
+    ].join('\n')))
+    expect(cfg.components.skills).toBe('my/skills')
+    expect(cfg.components.commands).toBe('my/commands/here')
+  })
+
+  it('rejects component paths with backslashes', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: \'skills\\\\dir\'\n'
+    ))).toThrowError(ConfigError)
+  })
+
+  it('rejects component paths with spaces', () => {
+    expect(() => loadConfig(repoWith(
+      'name: bad\nversion: 1.0.0\ndescription: bad\ncomponents:\n  skills: \'my skills\'\n'
+    ))).toThrowError(ConfigError)
+  })
 })

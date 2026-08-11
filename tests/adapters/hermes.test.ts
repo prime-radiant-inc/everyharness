@@ -251,4 +251,27 @@ describe('hermes plugin.py -- execution smoke test', () => {
     const stdout = execFileSync('python3', [driverPath], { encoding: 'utf8' })
     expect(stdout).toContain('SMOKE_TEST_OK')
   })
+
+  it('emits syntactically valid Python with multi-segment component paths (regression: path charset)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-hermes-multipath-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: multi-path\nversion: 1.0.0\ndescription: multi-segment component path fixture\nbootstrap:\n  skill: example\ncomponents:\n  skills: my/skills\n',
+    )
+    mkdirSync(join(dir, 'my', 'skills', 'example'), { recursive: true })
+    writeFileSync(
+      join(dir, 'my', 'skills', 'example', 'SKILL.md'),
+      '---\nname: example\ndescription: skill in nested component path\n---\n\n# Example\n\nExample skill body.\n',
+    )
+
+    const mpModel = buildModel(dir)
+    const result = hermes.emit(mpModel)
+    const initPy = result.files.find((f) => f.path === '.hermes-plugin/__init__.py')!.content
+
+    // Ensure no placeholders leaked through
+    expect(initPy).not.toMatch(/__[A-Z_]+__/)
+
+    // Ensure the emitted Python is syntactically valid (this catches quote/backslash injection attacks)
+    expect(pyCompile(initPy).status).toBe(0)
+  })
 })
