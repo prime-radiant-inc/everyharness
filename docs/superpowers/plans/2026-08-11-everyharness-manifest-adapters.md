@@ -36,6 +36,8 @@
 
 Moved out of this plan (recorded here so nothing is silently lost): Gemini commands→TOML translation, Codex custom-prompts-from-commands, Gemini MCP passthrough, `bootstrap.generate` mode → all Plan 3. Everything else from the Plan 2 bullet in the Plan 1 roadmap is in scope here.
 
+Plan 3 backlog from the whole-branch review: EMPIRICAL CHECK REQUIRED before real-world claude-code bootstrap use — do user hooks double-fire when plugin.json hooks points at the merged file while hooks/hooks.json sits at the auto-discovered default? (docs ambiguous; merged design chosen because its failure mode — double-fire — beats losing user hooks). Also: gemini contextFileName override mismatch warning; gemini.ts uses local json helper not shared.ts; mcp.json old-default upgrade warning; .gitattributes/CRLF note for install docs; prune-before-write window; codex-vs-devin bootstrap matrix wording; pruned paths not printed; agent-plugins translate-time element typing + malformed-shape warning; cursor override/generate-mode tests; kimi bootstrap-none test; ConfigError cause chaining; agents filename-sort; model.ts description-extraction duplication.
+
 ## File Structure (this plan)
 
 ```
