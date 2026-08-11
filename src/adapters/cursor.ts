@@ -3,6 +3,7 @@ import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd } from '../bootstrap/shell-hook.js'
+import { baseManifestFields, json } from './shared.js'
 
 // Where the cursor adapter emits the bootstrap SessionStart hook and its
 // hooks-cursor.json, when config.bootstrap.kind === 'skill'. Shares the
@@ -13,17 +14,18 @@ const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks-cursor.json`
 
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
+  // Splice displayName after name and swap description/version ahead of the
+  // author/homepage/.../keywords tail (which already matches
+  // baseManifestFields' order) to keep cursor's on-disk field order
+  // byte-identical to its pre-refactor output.
+  const { version, description, ...rest } = baseManifestFields(config)
   const manifest: Record<string, unknown> = {
     name: config.name,
     displayName: config.name,
-    description: config.description,
-    version: config.version,
+    description,
+    version,
+    ...rest,
   }
-  if (config.author) manifest.author = config.author
-  if (config.homepage) manifest.homepage = config.homepage
-  if (config.repository) manifest.repository = config.repository
-  if (config.license) manifest.license = config.license
-  if (config.keywords) manifest.keywords = config.keywords
   manifest.skills = `./${config.components.skills}/`
   if (config.bootstrap.kind === 'skill') {
     manifest.hooks = `./${BOOTSTRAP_HOOKS_JSON_PATH}`
@@ -52,7 +54,6 @@ export const cursor: HarnessAdapter = {
     bootstrap: 'full',
   },
   emit(model: PluginModel): EmitResult {
-    const json = (value: unknown) => JSON.stringify(value, null, 2) + '\n'
     const { config } = model
     const warnings: string[] = []
     const files: GeneratedFile[] = [{ path: '.cursor-plugin/plugin.json', content: json(pluginManifest(model)) }]

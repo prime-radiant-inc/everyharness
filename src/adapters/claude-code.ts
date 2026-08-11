@@ -3,6 +3,7 @@ import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
+import { baseManifestFields, json } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -11,16 +12,17 @@ const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks.json`
 
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
-  const manifest: Record<string, unknown> = {
-    name: config.name,
-    version: config.version,
-    description: config.description,
-  }
-  if (config.author) manifest.author = config.author
-  if (config.license) manifest.license = config.license
-  if (config.repository) manifest.repository = config.repository
-  if (config.homepage) manifest.homepage = config.homepage
-  if (config.keywords) manifest.keywords = config.keywords
+  const base = baseManifestFields(config)
+  // baseManifestFields orders homepage/repository/license the other way
+  // (shared with cursor/codex/devin/kimi); reconstruct claude-code's own
+  // on-disk order (license, repository, homepage) to keep generated output
+  // byte-identical.
+  const manifest: Record<string, unknown> = { name: base.name, version: base.version, description: base.description }
+  if ('author' in base) manifest.author = base.author
+  if ('license' in base) manifest.license = base.license
+  if ('repository' in base) manifest.repository = base.repository
+  if ('homepage' in base) manifest.homepage = base.homepage
+  if ('keywords' in base) manifest.keywords = base.keywords
   // Claude Code auto-discovers commands/, agents/, skills/, hooks/hooks.json,
   // and .mcp.json; only non-default locations need explicit manifest keys.
   if (model.skills.length && config.components.skills !== 'skills') {
@@ -78,7 +80,6 @@ export const claudeCode: HarnessAdapter = {
     bootstrap: 'full',
   },
   emit(model: PluginModel): EmitResult {
-    const json = (value: unknown) => JSON.stringify(value, null, 2) + '\n'
     const { config } = model
     const warnings: string[] = []
     const files: GeneratedFile[] = [

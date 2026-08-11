@@ -2,19 +2,11 @@ import { deepMerge } from '../fileset.js'
 import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
+import { baseManifestFields, json } from './shared.js'
 
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
-  const manifest: Record<string, unknown> = {
-    name: config.name,
-    version: config.version,
-    description: config.description,
-  }
-  if (config.author) manifest.author = config.author
-  if (config.homepage) manifest.homepage = config.homepage
-  if (config.repository) manifest.repository = config.repository
-  if (config.license) manifest.license = config.license
-  if (config.keywords) manifest.keywords = config.keywords
+  const manifest: Record<string, unknown> = { ...baseManifestFields(config) }
   manifest.skills = `./${config.components.skills}/`
   // Codex's loader auto-registers hooks/hooks.json unless the manifest holds
   // a literal empty object here — this avoids duplicate trust prompts.
@@ -34,7 +26,6 @@ export const codex: HarnessAdapter = {
     bootstrap: 'partial',
   },
   emit(model: PluginModel): EmitResult {
-    const json = (value: unknown) => JSON.stringify(value, null, 2) + '\n'
     const warnings: string[] = []
     const files: GeneratedFile[] = [{ path: '.codex-plugin/plugin.json', content: json(pluginManifest(model)) }]
 
