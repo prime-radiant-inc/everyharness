@@ -85,7 +85,9 @@ program
 
 program
   .command('test')
-  .description('Run container-backed offline install checks against a generated plugin')
+  .description(
+    'Run container-backed offline install checks against a generated plugin: parse every harness manifest, then really install the plugin into each harness CLI and assert it enumerates the skills',
+  )
   .option('--dir <path>', 'plugin root directory', '.')
   .option('--image <ref>', 'container image to run checks in', DEFAULT_IMAGE)
   .action(async (opts: { dir: string; image: string }) => {
