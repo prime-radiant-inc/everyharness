@@ -3,6 +3,7 @@ import { Command } from 'commander'
 import { generate, TOOL_VERSION } from './generate.js'
 import { validate } from './validate.js'
 import { renderMatrix } from './matrix.js'
+import { init } from './init.js'
 import { ConfigError } from './config.js'
 
 const program = new Command()
@@ -11,6 +12,18 @@ program
   .name('everyharness')
   .description('Generate a coding-agent plugin for every harness from one config file')
   .version(TOOL_VERSION)
+
+program
+  .command('init')
+  .description('Scaffold a new plugin with everyharness.yaml and getting-started skill')
+  .option('--dir <path>', 'plugin root directory', '.')
+  .option('--force', 're-scaffold the config only (never deletes user files)', false)
+  .action((opts: { dir: string; force: boolean }) => {
+    const result = init(opts.dir, { force: opts.force })
+    for (const path of result.created) console.log(`created: ${path}`)
+    console.log(`Generated ${result.generated} files for initialization`)
+    console.log('Next: edit everyharness.yaml, then re-run everyharness generate')
+  })
 
 program
   .command('generate')
