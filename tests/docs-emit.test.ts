@@ -254,8 +254,12 @@ describe('gemini installDoc positional-args caveat conditionality (Finding 3)', 
 
 describe('agent-plugins installDoc mcp condition (Finding 2)', () => {
   it('does not list mcp.json in "What gets emitted" when mcp config is malformed (no mcpServers key)', () => {
-    const dir = tmpFixture('name: malformed-mcp\nversion: 1.0.0\ndescription: malformed mcp fixture\nmcp:\n  servers: {}\n')
+    const dir = tmpFixture('name: malformed-mcp\nversion: 1.0.0\ndescription: malformed mcp fixture\n')
+    // A real .mcp.json with the WRONG shape (servers instead of mcpServers) so the
+    // isPlainObject(mcp.mcpServers) branch of wouldEmitMcp is what this test exercises.
+    writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ servers: {} }) + '\n')
     const malformedModel = buildModel(dir)
+    expect(malformedModel.mcp).toBeDefined()
     const body = agentPlugins.installDoc!(malformedModel)
     // The installDoc should not list mcp.json in the emitted section when mcpManifest would return nothing
     const emittedSection = body.split('## Installing')[0]
