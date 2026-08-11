@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { execSync, spawnSync } from 'node:child_process'
+import { describe, it, expect } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, cpSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,10 +22,8 @@ function runCli(args: string[], cwd: string) {
 }
 
 describe('CLI end-to-end', () => {
-  beforeAll(() => {
-    execSync('npm run build', { cwd: REPO_ROOT, stdio: 'pipe' })
-  }, 60000)
-
+  // dist/cli.js is built once via tests/global-setup.ts (vitest globalSetup),
+  // before any test file runs.
   it('generate exits 0 and reports 11 harnesses with all adapter names', () => {
     const dir = tmpPluginDir()
     const result = runCli(['generate'], dir)

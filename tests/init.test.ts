@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { execSync, spawnSync } from 'node:child_process'
+import { describe, it, expect } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -151,10 +151,8 @@ describe('init function', () => {
 })
 
 describe('CLI init command', () => {
-  beforeAll(() => {
-    execSync('npm run build', { cwd: REPO_ROOT, stdio: 'pipe' })
-  }, 60000)
-
+  // dist/cli.js is built once via tests/global-setup.ts (vitest globalSetup),
+  // before any test file runs.
   it('exits 0 and prints created files and next steps', () => {
     const testDir = mkdtempSync(join(tmpdir(), 'eh-cli-init-'))
     const result = runCli(['init'], testDir)
