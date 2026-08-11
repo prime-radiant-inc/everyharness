@@ -1,5 +1,5 @@
 import { rmSync, rmdirSync, readdirSync, readFileSync, existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, isAbsolute, sep } from 'node:path'
 import { buildModel } from './model.js'
 import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
 import { saveManifest, loadManifest, sha256 } from './manifest.js'
@@ -57,15 +57,26 @@ export function generate(root: string, adapterList: HarnessAdapter[] = adapters)
   const pruned: string[] = []
   if (prior) {
     const newPaths = new Set(files.map((f) => f.path))
+    const rootAbs = resolve(root)
     for (const [path, entry] of Object.entries(prior.files)) {
       if (newPaths.has(path)) continue
-      const abs = join(root, path)
+
+      // Skip and warn if path is unsafe (absolute or escapes root)
+      if (isAbsolute(path)) {
+        warnings.push(`ignoring manifest entry with unsafe path ${path}`)
+        continue
+      }
+      const abs = resolve(root, path)
+      if (!abs.startsWith(rootAbs + sep)) {
+        warnings.push(`ignoring manifest entry with unsafe path ${path}`)
+        continue
+      }
+
       if (!existsSync(abs)) continue
       if (sha256(readFileSync(abs, 'utf8')) === entry.sha256) {
         rmSync(abs)
         pruned.push(path)
         let parent = dirname(abs)
-        const rootAbs = resolve(root)
         while (resolve(parent) !== rootAbs && existsSync(parent) && readdirSync(parent).length === 0) {
           rmdirSync(parent)
           parent = dirname(parent)

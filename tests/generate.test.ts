@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { cpSync, mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, afterEach } from 'vitest'
+import { cpSync, mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { generate } from '../src/generate.js'
 import { MANIFEST_PATH, checkDrift } from '../src/manifest.js'
 import type { HarnessAdapter } from '../src/adapters/index.js'
@@ -159,5 +159,38 @@ describe('generate', () => {
     expect(result.pruned).toEqual([])
     expect(result.warnings.join('\n')).toMatch(/stale generated file gen\/old\.txt/)
     expect(existsSync(join(dir, 'gen/old.txt'))).toBe(true)
+  })
+
+  it('ignores manifest entries with unsafe paths and warns', () => {
+    const dir = freshFixture()
+    const synthetic: HarnessAdapter = {
+      name: 'synthetic',
+      support: fullSupport,
+      emit: () => ({ files: [{ path: 'gen/file.txt', content: 'v1' }], warnings: [] }),
+    }
+    generate(dir, [synthetic])
+
+    // Hand-edit manifest to add an unsafe entry with parent-directory traversal
+    const manifestPath = join(dir, MANIFEST_PATH)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.files['../escape.txt'] = {
+      sha256: '0000000000000000000000000000000000000000000000000000000000000000',
+    }
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    // Create a file outside the plugin root
+    const parentDir = dirname(dir)
+    const outsideFile = join(parentDir, 'escape.txt')
+    writeFileSync(outsideFile, 'should not be deleted')
+
+    // Regenerate with empty adapter — should skip the unsafe entry and warn
+    const result = generate(dir, [{ name: 'empty', support: fullSupport, emit: () => ({ files: [], warnings: [] }) }])
+
+    expect(existsSync(outsideFile)).toBe(true)
+    expect(result.pruned).not.toContain('../escape.txt')
+    expect(result.warnings.join('\n')).toMatch(/unsafe path.*\.\.\/escape\.txt/)
+
+    // Cleanup
+    rmSync(outsideFile, { force: true })
   })
 })
