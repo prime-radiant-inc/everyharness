@@ -32,7 +32,7 @@ export const codex: HarnessAdapter = {
     if (model.hooks !== undefined) {
       warnings.push('hooks are not supported on codex; bootstrap relies on native skill discovery')
     }
-    if (model.commands.length) warnings.push('commands are not emitted for codex in v1 (custom prompts land in Plan 3)')
+    if (model.commands.length) warnings.push('commands are not supported on codex (no plugin-shipped prompt mechanism)')
     if (model.agents.length) warnings.push('agents are not emitted for codex in v1')
     if (model.mcp !== undefined) warnings.push('mcp servers are not emitted for codex in v1')
 

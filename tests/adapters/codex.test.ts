@@ -37,7 +37,7 @@ describe('codex adapter', () => {
   it('warns about hooks, commands, agents, and mcp not being emitted for codex', () => {
     expect(result.warnings).toEqual([
       'hooks are not supported on codex; bootstrap relies on native skill discovery',
-      'commands are not emitted for codex in v1 (custom prompts land in Plan 3)',
+      'commands are not supported on codex (no plugin-shipped prompt mechanism)',
       'agents are not emitted for codex in v1',
       'mcp servers are not emitted for codex in v1',
     ])
