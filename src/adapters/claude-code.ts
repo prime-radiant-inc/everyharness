@@ -1,6 +1,13 @@
 import { deepMerge } from '../fileset.js'
+import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
+import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
+
+// Where the claude-code adapter emits the bootstrap SessionStart hook and its
+// merged hooks.json, when config.bootstrap.kind === 'skill'.
+const BOOTSTRAP_HOOKS_DIR = 'hooks/everyharness'
+const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks.json`
 
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
@@ -25,7 +32,12 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (model.agents.length && config.components.agents !== 'agents') {
     manifest.agents = `./${config.components.agents}`
   }
-  if (model.hooks !== undefined && config.components.hooks !== 'hooks/hooks.json') {
+  if (config.bootstrap.kind === 'skill') {
+    // Bootstrap hooks always live at a non-default path, and always exist
+    // (even with no user hooks), so this takes priority over the general
+    // non-default-path rule below.
+    manifest.hooks = `./${BOOTSTRAP_HOOKS_JSON_PATH}`
+  } else if (model.hooks !== undefined && config.components.hooks !== 'hooks/hooks.json') {
     manifest.hooks = `./${config.components.hooks}`
   }
   if (model.mcp !== undefined && config.components.mcp !== '.mcp.json') {
@@ -67,12 +79,31 @@ export const claudeCode: HarnessAdapter = {
   },
   emit(model: PluginModel): EmitResult {
     const json = (value: unknown) => JSON.stringify(value, null, 2) + '\n'
-    return {
-      files: [
-        { path: '.claude-plugin/plugin.json', content: json(pluginManifest(model)) },
-        { path: '.claude-plugin/marketplace.json', content: json(marketplaceManifest(model)) },
-      ],
-      warnings: [],
+    const { config } = model
+    const warnings: string[] = []
+    const files: GeneratedFile[] = [
+      { path: '.claude-plugin/plugin.json', content: json(pluginManifest(model)) },
+      { path: '.claude-plugin/marketplace.json', content: json(marketplaceManifest(model)) },
+    ]
+    if (config.bootstrap.kind === 'skill') {
+      const skillName = config.bootstrap.skill
+      const skill = model.skills.find((s) => s.name === skillName)
+      if (!skill) {
+        // buildModel validates the bootstrap skill exists before adapters run.
+        throw new Error(`bootstrap skill "${skillName}" not found (buildModel should have validated this)`)
+      }
+      files.push(
+        {
+          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+          content: sessionStartScript({ pluginName: config.name, bootstrapSkillDir: skill.dir }),
+          executable: true,
+        },
+        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+      )
+    } else if (config.bootstrap.kind === 'generate') {
+      warnings.push('bootstrap.generate is not implemented until Plan 3; falling back to none')
     }
+    return { files, warnings }
   },
 }

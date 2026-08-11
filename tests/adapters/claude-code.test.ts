@@ -31,6 +31,7 @@ describe('claude-code adapter', () => {
       repository: 'https://github.com/prime-radiant-inc/everyharness',
       keywords: ['fixture'],
       homepage: 'https://example.com/kitchen-sink',
+      hooks: './hooks/everyharness/hooks.json',
     })
   })
 
@@ -57,6 +58,40 @@ describe('claude-code adapter', () => {
 
   it('declares full support for every component', () => {
     expect(Object.values(claudeCode.support).every((level) => level === 'full')).toBe(true)
+  })
+
+  it('emits an executable bootstrap session-start hook', () => {
+    const file = result.files.find((f) => f.path === 'hooks/everyharness/session-start')
+    expect(file?.executable).toBe(true)
+    expect(file?.content).toContain('skills/using-kitchen-sink/SKILL.md')
+  })
+
+  it('emits an executable run-hook.cmd polyglot', () => {
+    const file = result.files.find((f) => f.path === 'hooks/everyharness/run-hook.cmd')
+    expect(file?.executable).toBe(true)
+    expect(file?.content.startsWith(": << 'CMDBLOCK'")).toBe(true)
+  })
+
+  it('emits hooks.json merging the fixture hook with the bootstrap SessionStart entry', () => {
+    const hooks = JSON.parse(byPath['hooks/everyharness/hooks.json'])
+    expect(hooks.hooks.SessionStart).toHaveLength(2)
+    expect(JSON.stringify(hooks.hooks.SessionStart[1])).toContain('hooks/everyharness/run-hook.cmd')
+  })
+})
+
+describe('claude-code adapter with bootstrap.generate', () => {
+  it('warns that generate falls back to none and emits no bootstrap files', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-generate-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+    )
+    const generateModel = buildModel(dir)
+    const result = claudeCode.emit(generateModel)
+    expect(result.warnings).toEqual(['bootstrap.generate is not implemented until Plan 3; falling back to none'])
+    expect(result.files.some((f) => f.path.startsWith('hooks/everyharness/'))).toBe(false)
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.claude-plugin/plugin.json')!.content)
+    expect(manifest.hooks).toBeUndefined()
   })
 })
 
