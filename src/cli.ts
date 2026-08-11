@@ -36,7 +36,7 @@ program
     for (const item of result.found) console.log(`found: ${item}`)
     for (const warning of result.warnings) console.warn(`warning: ${warning}`)
     console.log(
-      'Wrote everyharness.yaml — review it, then run everyharness generate. Note: generate will report conflicts with your existing hand-maintained harness files (e.g. .claude-plugin/plugin.json); after reviewing, re-run with --force to let everyharness own them.',
+      'Wrote everyharness.yaml — review it, then run everyharness generate. Note: generate will report conflicts with your existing hand-maintained harness files (e.g. .claude-plugin/plugin.json); after reviewing, re-run with --force to let everyharness own them. If your repo has a README.md, adding <!-- everyharness:install:start --> and <!-- everyharness:install:end --> markers lets `generate` inject the install matrix.',
     )
   })
 

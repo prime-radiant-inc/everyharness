@@ -123,7 +123,7 @@ export function injectReadme(
   if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
     return {
       injected: false,
-      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
+      warning: `README.md has no everyharness install markers; skipping install-matrix injection\n  add ${README_START} and ${README_END} where the table should go`,
     }
   }
 

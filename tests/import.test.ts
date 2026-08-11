@@ -379,6 +379,7 @@ describe('CLI import command', () => {
     expect(first.stdout).toContain(
       'Wrote everyharness.yaml — review it, then run everyharness generate. Note: generate will report conflicts with your existing hand-maintained harness files (e.g. .claude-plugin/plugin.json); after reviewing, re-run with --force to let everyharness own them.',
     )
+    expect(first.stdout).toContain('<!-- everyharness:install:start -->')
     expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(true)
 
     const second = runCli(['import'], dir)
