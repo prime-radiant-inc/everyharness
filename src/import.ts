@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { stringify } from 'yaml'
-import { ConfigError, PLUGIN_NAME_RE } from './config.js'
+import { ConfigError, PLUGIN_NAME_RE, loadConfig } from './config.js'
 
 export interface ImportResult {
   configPath: string
@@ -41,6 +41,42 @@ const MAPPED_PLUGIN_JSON_KEYS = new Set([
 
 function stripLeadingDotSlash(path: string): string {
   return path.startsWith('./') ? path.slice(2) : path
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+// plugin.json's `hooks`/`mcpServers` keys accept either a path string (found
+// by the normal file-detection below) or an inline value — Claude embeds the
+// hooks-file's/`.mcp.json`'s own top-level payload directly rather than
+// wrapping it (see schemas/claude-code-plugin-manifest.json: the object arm
+// of "hooks" is the event-name-keyed map, the same shape hooks.json wraps in
+// {"hooks": ...}; the object arm of "mcpServers" is the server map, the same
+// shape .mcp.json wraps in {"mcpServers": ...}). Silently dropping that value
+// loses real configuration, so extract it to the default component file
+// (2-space JSON + trailing newline) unless one is already there, in which
+// case we refuse to clobber it and leave resolution to the user.
+function extractInlineComponent(
+  rootAbs: string,
+  defaultPath: string,
+  jsonKey: string,
+  foundLabel: string,
+  wrapKey: string,
+  inlineValue: unknown,
+  found: string[],
+  warnings: string[],
+): boolean {
+  const abs = join(rootAbs, defaultPath)
+  if (existsSync(abs)) {
+    warnings.push(`plugin.json's ${jsonKey} is defined inline but ${defaultPath} already exists; resolve manually`)
+    return false
+  }
+  mkdirSync(dirname(abs), { recursive: true })
+  writeFileSync(abs, `${JSON.stringify({ [wrapKey]: inlineValue }, null, 2)}\n`)
+  found.push(`${foundLabel} (inlined to ${defaultPath})`)
+  warnings.push(`plugin.json's ${jsonKey} was defined inline; extracted to ${defaultPath}`)
+  return true
 }
 
 // A custom path key in plugin.json overrides the corresponding default
@@ -116,11 +152,23 @@ export function importPlugin(root: string): ImportResult {
   }
 
   const output: Record<string, unknown> = { name, version, description }
-  if (pluginJson.author !== undefined) output.author = pluginJson.author
+  if (pluginJson.author !== undefined) {
+    if (isPlainObject(pluginJson.author)) {
+      output.author = pluginJson.author
+    } else {
+      warnings.push("plugin.json's author has an unexpected type; skipped")
+    }
+  }
   if (typeof pluginJson.license === 'string') output.license = pluginJson.license
   if (typeof pluginJson.repository === 'string') output.repository = pluginJson.repository
   if (typeof pluginJson.homepage === 'string') output.homepage = pluginJson.homepage
-  if (pluginJson.keywords !== undefined) output.keywords = pluginJson.keywords
+  if (pluginJson.keywords !== undefined) {
+    if (Array.isArray(pluginJson.keywords)) {
+      output.keywords = pluginJson.keywords
+    } else {
+      warnings.push("plugin.json's keywords has an unexpected type; skipped")
+    }
+  }
 
   // Component detection: resolve each component's path (custom plugin.json
   // key, else the everyharness default), then see what's actually on disk
@@ -151,16 +199,30 @@ export function importPlugin(root: string): ImportResult {
     if (agentsPath !== DEFAULT_PATHS.agents) components.agents = agentsPath
   }
 
-  const hooksPath = resolveComponentPath(pluginJson, 'hooks', DEFAULT_PATHS.hooks)
-  if (fileExists(rootAbs, hooksPath)) {
-    found.push('hooks')
-    if (hooksPath !== DEFAULT_PATHS.hooks) components.hooks = hooksPath
+  const hooksRaw = pluginJson.hooks
+  const hooksInline = hooksRaw !== undefined && typeof hooksRaw !== 'string' ? hooksRaw : undefined
+  const hooksExtracted =
+    hooksInline !== undefined &&
+    extractInlineComponent(rootAbs, DEFAULT_PATHS.hooks, 'hooks', 'hooks', 'hooks', hooksInline, found, warnings)
+  if (!hooksExtracted) {
+    const hooksPath = resolveComponentPath(pluginJson, 'hooks', DEFAULT_PATHS.hooks)
+    if (fileExists(rootAbs, hooksPath)) {
+      found.push('hooks')
+      if (hooksPath !== DEFAULT_PATHS.hooks) components.hooks = hooksPath
+    }
   }
 
-  const mcpPath = resolveComponentPath(pluginJson, 'mcpServers', DEFAULT_PATHS.mcp)
-  if (fileExists(rootAbs, mcpPath)) {
-    found.push('mcp')
-    if (mcpPath !== DEFAULT_PATHS.mcp) components.mcp = mcpPath
+  const mcpRaw = pluginJson.mcpServers
+  const mcpInline = mcpRaw !== undefined && typeof mcpRaw !== 'string' ? mcpRaw : undefined
+  const mcpExtracted =
+    mcpInline !== undefined &&
+    extractInlineComponent(rootAbs, DEFAULT_PATHS.mcp, 'mcpServers', 'mcp', 'mcpServers', mcpInline, found, warnings)
+  if (!mcpExtracted) {
+    const mcpPath = resolveComponentPath(pluginJson, 'mcpServers', DEFAULT_PATHS.mcp)
+    if (fileExists(rootAbs, mcpPath)) {
+      found.push('mcp')
+      if (mcpPath !== DEFAULT_PATHS.mcp) components.mcp = mcpPath
+    }
   }
 
   // Bootstrap: a skill literally named using-<plugin-name> opts into the
@@ -186,6 +248,22 @@ export function importPlugin(root: string): ImportResult {
   }
 
   writeFileSync(configPath, stringify(output))
+
+  // Round-trip the freshly written yaml through the same schema `generate`
+  // and `validate` will use. This is the one place that catches every
+  // schema violation an untrusted plugin.json could produce (an absolute or
+  // traversal-y custom component path, an unexpected field shape, ...) in a
+  // single net, rather than re-deriving each individual rule here.
+  try {
+    loadConfig(rootAbs)
+  } catch (e) {
+    unlinkSync(configPath)
+    throw new ConfigError(
+      `import produced an invalid everyharness.yaml (${(e as Error).message}); fix .claude-plugin/plugin.json and re-run`,
+      [],
+      { cause: e },
+    )
+  }
 
   return { configPath, found, warnings }
 }

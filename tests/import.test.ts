@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { stringify } from 'yaml'
 import { importPlugin } from '../src/import.js'
 import { ConfigError, loadConfig } from '../src/config.js'
+import { buildModel } from '../src/model.js'
 
 const REPO_ROOT = process.cwd()
 const CLI = join(REPO_ROOT, 'dist', 'cli.js')
@@ -138,12 +139,30 @@ describe('importPlugin', () => {
 
   it('detects a custom commands path from plugin.json and records it in components', () => {
     const dir = tmpDir('eh-import-custom-')
-    writePluginJson(dir, { name: 'custom-paths', version: '1.0.0', description: 'Custom paths', commands: './my-cmds' })
+    writePluginJson(dir, {
+      name: 'custom-paths',
+      version: '1.0.0',
+      description: 'Custom paths',
+      commands: './my-cmds',
+      xClaude: { b: 2 },
+    })
     writeMd(dir, 'my-cmds', 'x')
 
     const result = importPlugin(dir)
 
     expect(result.found).toEqual(['commands (1)'])
+    expect(result.warnings).toEqual(['carried unknown plugin.json key "xClaude" into harnesses.overrides.claude-code'])
+
+    const expected = stringify({
+      name: 'custom-paths',
+      version: '1.0.0',
+      description: 'Custom paths',
+      bootstrap: { generate: true },
+      components: { commands: 'my-cmds' },
+      harnesses: { overrides: { 'claude-code': { xClaude: { b: 2 } } } },
+    })
+    expect(readFileSync(result.configPath, 'utf8')).toBe(expected)
+
     const config = loadConfig(dir)
     expect(config.components.commands).toBe('my-cmds')
   })
@@ -159,6 +178,170 @@ describe('importPlugin', () => {
     const config = loadConfig(dir)
     expect(config.version).toBe('0.1.0')
     expect(config.description).toBe('TODO describe this plugin')
+  })
+
+  it('extracts an inline mcpServers value to .mcp.json when no such file exists', () => {
+    const dir = tmpDir('eh-import-inline-mcp-')
+    writePluginJson(dir, {
+      name: 'inline-mcp',
+      version: '1.0.0',
+      description: 'Inline mcp',
+      mcpServers: { demo: { command: 'node', args: ['./server.js'] } },
+    })
+
+    const result = importPlugin(dir)
+
+    expect(result.found).toContain('mcp (inlined to .mcp.json)')
+    expect(result.warnings).toContain("plugin.json's mcpServers was defined inline; extracted to .mcp.json")
+    expect(JSON.parse(readFileSync(join(dir, '.mcp.json'), 'utf8'))).toEqual({
+      mcpServers: { demo: { command: 'node', args: ['./server.js'] } },
+    })
+    expect(readFileSync(join(dir, '.mcp.json'), 'utf8').endsWith('\n')).toBe(true)
+
+    const config = loadConfig(dir)
+    expect(config.components.mcp).toBe('.mcp.json')
+    const model = buildModel(dir)
+    expect(model.mcp).toEqual({ mcpServers: { demo: { command: 'node', args: ['./server.js'] } } })
+  })
+
+  it('extracts an inline hooks value to hooks/hooks.json when no such file exists', () => {
+    const dir = tmpDir('eh-import-inline-hooks-')
+    writePluginJson(dir, {
+      name: 'inline-hooks',
+      version: '1.0.0',
+      description: 'Inline hooks',
+      hooks: { SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: 'echo hi' }] }] },
+    })
+
+    const result = importPlugin(dir)
+
+    expect(result.found).toContain('hooks (inlined to hooks/hooks.json)')
+    expect(result.warnings).toContain("plugin.json's hooks was defined inline; extracted to hooks/hooks.json")
+    expect(JSON.parse(readFileSync(join(dir, 'hooks', 'hooks.json'), 'utf8'))).toEqual({
+      hooks: { SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: 'echo hi' }] }] },
+    })
+
+    const config = loadConfig(dir)
+    expect(config.components.hooks).toBe('hooks/hooks.json')
+    const model = buildModel(dir)
+    expect(model.hooks).toEqual({
+      hooks: { SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: 'echo hi' }] }] },
+    })
+  })
+
+  it('warns and skips when inline mcpServers conflicts with a pre-existing .mcp.json', () => {
+    const dir = tmpDir('eh-import-inline-mcp-conflict-')
+    writePluginJson(dir, {
+      name: 'inline-mcp-conflict',
+      version: '1.0.0',
+      description: 'Conflict',
+      mcpServers: { demo: { command: 'node' } },
+    })
+    writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ mcpServers: { existing: { command: 'python' } } }, null, 2))
+
+    const result = importPlugin(dir)
+
+    expect(result.warnings).toContain(
+      "plugin.json's mcpServers is defined inline but .mcp.json already exists; resolve manually",
+    )
+    expect(result.found).toContain('mcp')
+    expect(result.found).not.toContain('mcp (inlined to .mcp.json)')
+    expect(JSON.parse(readFileSync(join(dir, '.mcp.json'), 'utf8'))).toEqual({
+      mcpServers: { existing: { command: 'python' } },
+    })
+  })
+
+  it('warns and skips when inline hooks conflicts with a pre-existing hooks/hooks.json', () => {
+    const dir = tmpDir('eh-import-inline-hooks-conflict-')
+    writePluginJson(dir, {
+      name: 'inline-hooks-conflict',
+      version: '1.0.0',
+      description: 'Conflict',
+      hooks: { SessionStart: [] },
+    })
+    mkdirSync(join(dir, 'hooks'), { recursive: true })
+    writeFileSync(join(dir, 'hooks', 'hooks.json'), JSON.stringify({ hooks: { PreToolUse: [] } }, null, 2))
+
+    const result = importPlugin(dir)
+
+    expect(result.warnings).toContain(
+      "plugin.json's hooks is defined inline but hooks/hooks.json already exists; resolve manually",
+    )
+    expect(result.found).toContain('hooks')
+    expect(result.found).not.toContain('hooks (inlined to hooks/hooks.json)')
+    expect(JSON.parse(readFileSync(join(dir, 'hooks', 'hooks.json'), 'utf8'))).toEqual({
+      hooks: { PreToolUse: [] },
+    })
+  })
+
+  it('throws a ConfigError and removes the written yaml when a custom commands path is absolute', () => {
+    const dir = tmpDir('eh-import-abspath-')
+    writePluginJson(dir, { name: 'abs-path', version: '1.0.0', description: 'Abs path', commands: '/abs/path' })
+    writeMd(dir, 'abs/path', 'x')
+
+    try {
+      importPlugin(dir)
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigError)
+      expect((err as Error).message).toMatch(/invalid everyharness\.yaml/)
+      expect((err as Error).cause).toBeInstanceOf(Error)
+    }
+    expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(false)
+  })
+
+  it('throws a ConfigError and removes the written yaml when a custom commands path traverses out of the plugin root', () => {
+    const base = tmpDir('eh-import-traversal-')
+    const dir = join(base, 'plugin')
+    mkdirSync(dir, { recursive: true })
+    writePluginJson(dir, { name: 'traversal', version: '1.0.0', description: 'Traversal', commands: '../evil' })
+    writeMd(base, 'evil', 'x')
+
+    expect(() => importPlugin(dir)).toThrow(/invalid everyharness\.yaml/)
+    expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(false)
+  })
+
+  it('warns and omits author when plugin.json author is not a plain object', () => {
+    const dir = tmpDir('eh-import-badauthor-')
+    writePluginJson(dir, { name: 'bad-author', version: '1.0.0', description: 'Bad author', author: 'Jane Doe' })
+
+    const result = importPlugin(dir)
+
+    expect(result.warnings).toContain("plugin.json's author has an unexpected type; skipped")
+    const config = loadConfig(dir)
+    expect(config.author).toBeUndefined()
+  })
+
+  it('warns and omits author when plugin.json author is an array', () => {
+    const dir = tmpDir('eh-import-badauthor-arr-')
+    writePluginJson(dir, {
+      name: 'bad-author-arr',
+      version: '1.0.0',
+      description: 'Bad author array',
+      author: ['not', 'an', 'object'],
+    })
+
+    const result = importPlugin(dir)
+
+    expect(result.warnings).toContain("plugin.json's author has an unexpected type; skipped")
+    const config = loadConfig(dir)
+    expect(config.author).toBeUndefined()
+  })
+
+  it('warns and omits keywords when plugin.json keywords is not an array', () => {
+    const dir = tmpDir('eh-import-badkeywords-')
+    writePluginJson(dir, {
+      name: 'bad-keywords',
+      version: '1.0.0',
+      description: 'Bad keywords',
+      keywords: 'not-an-array',
+    })
+
+    const result = importPlugin(dir)
+
+    expect(result.warnings).toContain("plugin.json's keywords has an unexpected type; skipped")
+    const config = loadConfig(dir)
+    expect(config.keywords).toBeUndefined()
   })
 })
 
