@@ -14,7 +14,6 @@ export const DEFAULT_IMAGE = 'ghcr.io/prime-radiant-inc/everyharness-container:l
 
 export interface TestOptions {
   image?: string
-  keep?: boolean
 }
 
 export interface TestResult {
@@ -27,9 +26,11 @@ export interface TestResult {
 // <plugin>:/plugin:ro -v <checks>:/checks:ro <image> bash
 // /checks/run-checks.sh`, streaming stdout/stderr through as it runs.
 //
-// Exit-code mapping: docker exit 0 (all checks passed) -> 0; docker exit 1
-// (the checks script found a failing check) -> 2; any other docker exit
-// status, or a failure to invoke docker at all, -> ConfigError.
+// Exit-code mapping: docker exit 0 (all checks passed) -> 0; docker exit 3
+// (the checks script found a failing check — a distinctive code chosen so
+// it can't collide with docker's own generic exit 1) -> 2; any other
+// docker exit status (including docker's own exit 1, e.g. daemon down or
+// no socket perms), or a failure to invoke docker at all, -> ConfigError.
 export function runTest(root: string, opts: TestOptions = {}): Promise<TestResult> {
   if (!existsSync(join(root, MANIFEST_PATH))) {
     throw new ConfigError('no generation manifest; run everyharness generate first')
@@ -40,7 +41,7 @@ export function runTest(root: string, opts: TestOptions = {}): Promise<TestResul
 
   const args = [
     'run',
-    ...(opts.keep ? [] : ['--rm']),
+    '--rm',
     '-e',
     `EH_PLUGIN_NAME=${config.name}`,
     '-v',
@@ -82,11 +83,11 @@ export function runTest(root: string, opts: TestOptions = {}): Promise<TestResul
       if (settled) return
       settled = true
       if (code === 0) resolvePromise({ exitCode: 0, output })
-      else if (code === 1) resolvePromise({ exitCode: 2, output })
+      else if (code === 3) resolvePromise({ exitCode: 2, output })
       else
         reject(
           new ConfigError(
-            `docker invocation failed (exit ${code === null ? 'null, terminated by signal' : code}) while running everyharness test`,
+            `docker invocation failed (exit ${code === null ? 'null, terminated by signal' : code}); is the docker daemon running and the image pullable?`,
           ),
         )
     })

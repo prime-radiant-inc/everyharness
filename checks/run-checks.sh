@@ -20,7 +20,10 @@
 #   ok <harness>: <what passed>
 #   not ok <harness>: <what failed>
 #   skip <harness>: <why it was skipped (not generated, tool unavailable)>
-# Exit status: 0 if no "not ok" line was printed, else 1.
+# Exit status: 0 if no "not ok" line was printed, else 3 — a distinctive
+# code chosen so it can't collide with docker's own generic exit 1 (e.g.
+# daemon down, no socket perms), which src/test-command.ts must tell apart
+# from a real check failure.
 set -u
 
 : "${EH_PLUGIN_NAME:?EH_PLUGIN_NAME must be set}"
@@ -88,9 +91,8 @@ check_opencode() {
 
 # --- pi: bun import of the emitted extension, with a file-presence fallback
 # `import type` erases at bun's runtime type-stripping, so the extension
-# imports cleanly without the (uninstalled) pi package present. If that
-# proves flaky in practice, bun's absence or failure downgrades to
-# confirming the file is on disk rather than failing the check outright.
+# imports cleanly without the (uninstalled) pi package present. The fallback
+# covers ONLY bun's absence; a present-but-failing import is a real failure.
 check_pi() {
   local harness=pi
   local file="$PLUGIN_ROOT/.pi/extensions/${EH_PLUGIN_NAME}.ts"
@@ -99,7 +101,6 @@ check_pi() {
     return
   fi
   if ! command -v bun >/dev/null 2>&1; then
-    # Fallback covers ONLY bun's absence; a present-but-failing import is a real failure.
     ok "$harness" ".pi/extensions/${EH_PLUGIN_NAME}.ts present (FALLBACK-file-presence: bun not installed)"
     return
   fi
@@ -201,4 +202,7 @@ check_manifest_harness agent-plugins-1.0 plugin.json
 check_manifest_harness agent-plugins-1.0 mcp.json
 check_manifest_harness agents-marketplace .agents/plugins/marketplace.json
 
-exit "$FAILED"
+if [ "$FAILED" -eq 1 ]; then
+  exit 3
+fi
+exit 0

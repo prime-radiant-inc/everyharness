@@ -103,14 +103,24 @@ describe('runTest', () => {
     expect(result.exitCode).toBe(0)
   })
 
-  it('maps docker exit 1 (checks script found a failure) to exitCode 2', async () => {
+  it('maps docker exit 3 (checks script found a failure) to exitCode 2', async () => {
+    const dir = generatedKitchenSink()
+    const argvFile = join(mkdtempSync(join(tmpdir(), 'eh-argv-')), 'argv.txt')
+    process.env.PATH = dockerShimBin(argvFile)
+    process.env.DOCKER_SHIM_EXIT_CODE = '3'
+
+    const result = await runTest(dir)
+    expect(result.exitCode).toBe(2)
+  })
+
+  it('maps docker exit 1 (docker itself failed, e.g. daemon down) to a ConfigError', async () => {
     const dir = generatedKitchenSink()
     const argvFile = join(mkdtempSync(join(tmpdir(), 'eh-argv-')), 'argv.txt')
     process.env.PATH = dockerShimBin(argvFile)
     process.env.DOCKER_SHIM_EXIT_CODE = '1'
 
-    const result = await runTest(dir)
-    expect(result.exitCode).toBe(2)
+    await expect((async () => runTest(dir))()).rejects.toThrowError(ConfigError)
+    await expect((async () => runTest(dir))()).rejects.toThrowError(/docker invocation failed \(exit 1\)/)
   })
 
   it('maps docker exit 127 (invocation error) to a ConfigError', async () => {
@@ -157,6 +167,21 @@ describe('checks/run-checks.sh', () => {
     expect(result.stdout).not.toMatch(/^not ok /m)
     expect(result.status).toBe(0)
   })
+
+  // Corrupting a generated manifest into invalid JSON forces a "not ok" line
+  // (check_manifest_harness's `jq empty` fails), which must produce the
+  // distinctive exit 3 — not the generic exit 1 that a docker daemon-down
+  // failure also produces — so src/test-command.ts can tell the two apart.
+  it('exits 3 when a generated manifest is corrupted, with a matching "not ok" line', () => {
+    const dir = generatedKitchenSink()
+    writeFileSync(join(dir, '.codex-plugin', 'plugin.json'), '{not valid json')
+    const result = spawnSync('bash', [CHECKS_SCRIPT], {
+      encoding: 'utf8',
+      env: { ...process.env, EH_PLUGIN_NAME: 'kitchen-sink', EH_PLUGIN_ROOT: dir },
+    })
+    expect(result.stdout).toContain('not ok codex:')
+    expect(result.status).toBe(3)
+  })
 })
 
 describe('CLI test command e2e', () => {
@@ -174,7 +199,21 @@ describe('CLI test command e2e', () => {
     expect(result.status).toBe(0)
   })
 
-  it('exits 2 when the checks script fails (docker shim exit 1)', () => {
+  it('exits 2 when the checks script fails (docker shim exit 3)', () => {
+    const dir = generatedKitchenSink()
+    const argvFile = join(mkdtempSync(join(tmpdir(), 'eh-argv-')), 'argv.txt')
+    const bin = dockerShimBin(argvFile)
+
+    const result = spawnSync(process.execPath, [CLI, 'test'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: bin, DOCKER_SHIM_EXIT_CODE: '3' },
+    })
+
+    expect(result.status).toBe(2)
+  })
+
+  it('exits 1 with a config error when docker itself fails (docker shim exit 1, e.g. daemon down)', () => {
     const dir = generatedKitchenSink()
     const argvFile = join(mkdtempSync(join(tmpdir(), 'eh-argv-')), 'argv.txt')
     const bin = dockerShimBin(argvFile)
@@ -185,7 +224,8 @@ describe('CLI test command e2e', () => {
       env: { ...process.env, PATH: bin, DOCKER_SHIM_EXIT_CODE: '1' },
     })
 
-    expect(result.status).toBe(2)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('docker invocation failed (exit 1)')
   })
 
   it('exits 1 with a config error when docker is missing from PATH', () => {

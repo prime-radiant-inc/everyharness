@@ -22,8 +22,10 @@ npx everyharness import     # convert an existing Claude-format plugin
 npx everyharness generate   # emit per-harness files from everyharness.yaml
 npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
-npx everyharness test       # container-backed offline install checks (needs docker)
+npx everyharness test       # container-backed offline install checks (needs docker; exit 2 = failed checks)
 ```
+
+`everyharness test` pulls ghcr.io/prime-radiant-inc/everyharness-container on first use (large image, ~15GB, linux/amd64) — prefetch with `docker pull` if you want progress control.
 
 **Current status: generation works via 11 adapters covering 13 harnesses; `init` scaffolds, `import` converts Claude-format plugins, every generation emits install docs + a support matrix, and `everyharness test` runs offline install checks for all harnesses inside the shared container image (ghcr.io/prime-radiant-inc/everyharness-container). The superpowers dogfood test regenerates superpowers' hand-maintained manifests (4 of 8 byte-exact, 4 with one documented difference each).**
 
