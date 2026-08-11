@@ -46,6 +46,37 @@ exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`
   "homepage": "https://example.com/kitchen-sink"
 }
 
+=== .cursor-plugin/plugin.json ===
+{
+  "name": "kitchen-sink",
+  "displayName": "kitchen-sink",
+  "description": "Fixture plugin exercising every component type",
+  "version": "0.1.0",
+  "author": {
+    "name": "Prime Radiant",
+    "email": "dev@prime-radiant.example"
+  },
+  "repository": "https://github.com/prime-radiant-inc/everyharness",
+  "license": "MIT",
+  "keywords": [
+    "fixture"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/everyharness/hooks-cursor.json"
+}
+
+=== hooks/everyharness/hooks-cursor.json ===
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./hooks/everyharness/run-hook.cmd session-start"
+      }
+    ]
+  }
+}
+
 === hooks/everyharness/hooks.json ===
 {
   "hooks": {
