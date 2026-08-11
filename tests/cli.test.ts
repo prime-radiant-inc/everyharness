@@ -65,11 +65,14 @@ describe('CLI end-to-end', () => {
     expect(result.status).toBe(0)
     const geminiExtIndex = result.stdout.indexOf('pruned: gemini-extension.json')
     const geminiMdIndex = result.stdout.indexOf('pruned: GEMINI.md')
-    const countIndex = result.stdout.indexOf('Pruned 2 stale file(s)')
+    const geminiCommandIndex = result.stdout.indexOf('pruned: commands/ks-hello.toml')
+    const countIndex = result.stdout.indexOf('Pruned 3 stale file(s)')
     expect(geminiExtIndex).toBeGreaterThanOrEqual(0)
     expect(geminiMdIndex).toBeGreaterThanOrEqual(0)
+    expect(geminiCommandIndex).toBeGreaterThanOrEqual(0)
     expect(countIndex).toBeGreaterThan(geminiExtIndex)
     expect(countIndex).toBeGreaterThan(geminiMdIndex)
+    expect(countIndex).toBeGreaterThan(geminiCommandIndex)
   })
 
   it('second generate run prunes nothing and validate exits 0', () => {
