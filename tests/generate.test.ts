@@ -232,6 +232,19 @@ describe('generate', () => {
     expect(existsSync(join(dir, MANIFEST_PATH))).toBe(false)
   })
 
+  it('appends an actionable note when the refused-overwrite list includes a pre-existing package.json', () => {
+    const dir = freshFixture()
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'hand-written', private: true }))
+    expect(() => generate(dir)).toThrowError(/REPLACE your package\.json/)
+    try {
+      generate(dir)
+    } catch (err) {
+      expect((err as Error).message).toContain('package.json merging is not yet supported')
+      expect((err as Error).message).toContain('harnesses.exclude')
+    }
+    expect(existsSync(join(dir, MANIFEST_PATH))).toBe(false)
+  })
+
   it('overwrites a pre-existing hand-written file when force is set', () => {
     const dir = freshFixture()
     writeFileSync(join(dir, 'GEMINI.md'), 'hand-written content, not generated\n')

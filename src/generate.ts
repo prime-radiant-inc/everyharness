@@ -117,8 +117,16 @@ export function generate(
     conflicts.push(file.path)
   }
   if (conflicts.length > 0 && !opts.force) {
+    // package.json is npm-standard, hand-authored territory for most
+    // projects, and everyharness doesn't merge into it -- generate() only
+    // ever emits a full replacement (opencode/pi's nodePackageManifest).
+    // Point the user at the two actual ways out instead of leaving them to
+    // guess why --force means "lose your package.json".
+    const packageJsonNote = conflicts.includes('package.json')
+      ? ' — note: package.json merging is not yet supported; either exclude the opencode and pi adapters (harnesses.exclude) or move your package.json fields into the generated one manually. --force will REPLACE your package.json entirely.'
+      : ''
     throw new ConfigError(
-      `refusing to overwrite existing file(s) not created by everyharness: ${conflicts.join(', ')} (re-run with --force to overwrite)`,
+      `refusing to overwrite existing file(s) not created by everyharness: ${conflicts.join(', ')} (re-run with --force to overwrite)${packageJsonNote}`,
     )
   }
 
