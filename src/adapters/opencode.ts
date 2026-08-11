@@ -3,8 +3,7 @@ import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel, CommandRef, AgentRef } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { json } from './shared.js'
-import { nodePackageManifest, opencodePluginPath } from '../bootstrap/node-package.js'
-import { GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
+import { nodePackageManifest, opencodePluginPath, bootstrapContentPath } from '../bootstrap/node-package.js'
 
 // Marker text for command/agent files, placed as a `#` YAML comment inside
 // the frontmatter block -- see yamlFrontmatter below for why.
@@ -148,25 +147,6 @@ function toPascalCase(name: string): string {
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join('')
   return /^[0-9]/.test(pascal) ? `_${pascal}` : pascal
-}
-
-// Repo-relative path (from the plugin root) to the bootstrap content this
-// plugin should inject, or undefined when bootstrap.kind is 'none'.
-function bootstrapContentPath(model: PluginModel): string | undefined {
-  const { config } = model
-  if (config.bootstrap.kind === 'skill') {
-    const skillName = config.bootstrap.skill
-    const skill = model.skills.find((s) => s.name === skillName)
-    if (!skill) {
-      // buildModel validates the bootstrap skill exists before adapters run.
-      throw new Error(`bootstrap skill "${skillName}" not found (buildModel should have validated this)`)
-    }
-    return `${skill.dir}/SKILL.md`
-  }
-  if (config.bootstrap.kind === 'generate') {
-    return GENERATED_BOOTSTRAP_PATH
-  }
-  return undefined
 }
 
 function pluginModule(model: PluginModel): string {

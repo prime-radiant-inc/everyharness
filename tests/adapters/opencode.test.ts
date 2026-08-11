@@ -18,12 +18,12 @@ function tmpFixture(yaml: string): string {
 }
 
 describe('adapter registry', () => {
-  it('registers opencode between gemini and agent-plugins-1.0', () => {
+  it('registers opencode between gemini and pi', () => {
     const names = adapters.map((a) => a.name)
     expect(names).toContain('opencode')
     expect(getAdapter('opencode')).toBe(opencode)
     expect(names.indexOf('opencode')).toBe(names.indexOf('gemini') + 1)
-    expect(names.indexOf('opencode')).toBe(names.indexOf('agent-plugins-1.0') - 1)
+    expect(names.indexOf('opencode')).toBe(names.indexOf('pi') - 1)
   })
 })
 
@@ -47,6 +47,9 @@ describe('opencode adapter', () => {
       name: 'kitchen-sink',
       version: '0.1.0',
       description: 'Fixture plugin exercising every component type',
+      author: { name: 'Prime Radiant', email: 'dev@prime-radiant.example' },
+      license: 'MIT',
+      repository: 'https://github.com/prime-radiant-inc/everyharness',
       type: 'module',
       main: './.opencode/plugins/kitchen-sink.js',
       pi: { extensions: ['./.pi/extensions/kitchen-sink.ts'], skills: ['./skills'] },
