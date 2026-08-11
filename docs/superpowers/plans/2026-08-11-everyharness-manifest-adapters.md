@@ -59,7 +59,7 @@ src/
 schemas/
   agent-plugins-plugin.schema.json   # vendored
   agent-plugins-mcp.schema.json      # vendored
-  codex-plugin-manifest.json         # vendored from SchemaStore
+  # (codex schema evaluated and rejected 2026-08-11 — see Task 6)
 fixtures/kitchen-sink/     # modify: mcp.json → .mcp.json
 tests/
   generate.test.ts         # modify: dedupe/prune/source-guard tests
@@ -526,12 +526,12 @@ Write the expected JSON exactly in the test (2-space, trailing newline, key orde
 ### Task 6: codex + devin adapters
 
 **Files:**
-- Create: `src/adapters/codex.ts`, `src/adapters/devin.ts`, vendored `schemas/codex-plugin-manifest.json`
+- Create: `src/adapters/codex.ts`, `src/adapters/devin.ts`, 
 - Modify: `src/adapters/index.ts`, `src/validate.ts` (SCHEMA_TARGETS + codex entry)
 - Test: `tests/adapters/codex.test.ts`, `tests/adapters/devin.test.ts`, extend `tests/validate.test.ts`
 
 **Interfaces:**
-- `codex` emits `.codex-plugin/plugin.json`: base fields (name/version/description/author/homepage/repository/license/keywords) + `skills: './<skillsdir>/'` + **`hooks: {}` always** (Design decision 8) + `interface` object only from `harnesses.overrides.codex`. Warnings: hooks present → `hooks are not supported on codex; set-up relies on native skill discovery`; commands → `commands are not emitted for codex in v1 (custom prompts land in Plan 3)`; agents/mcp → not-emitted warnings. Support: skills full, bootstrap partial (native discovery only), others none.
+- `codex` emits `.codex-plugin/plugin.json`: base fields (name/version/description/author/homepage/repository/license/keywords) + `skills: './<skillsdir>/'` + **`hooks: {}` always** (Design decision 8) + `interface` object only from `harnesses.overrides.codex`. Warnings: hooks present → `hooks are not supported on codex; bootstrap relies on native skill discovery`; commands → `commands are not emitted for codex in v1 (custom prompts land in Plan 3)`; agents/mcp → not-emitted warnings. Support: skills full, bootstrap partial (native discovery only), others none.
 - `devin` emits `.devin-plugin/plugin.json`: base fields ONLY (ground truth: superpowers' devin manifest has no skills/hooks keys at all). Warnings for every non-skill component present. Support: skills full (native discovery), bootstrap none, rest none.
 - SchemaStore's codex schema was evaluated and rejected (2026-08-11): it fails known-good manifests (closed schema, no hooks property, required interface). Codex emission correctness is enforced by exact-content adapter tests instead.
 
