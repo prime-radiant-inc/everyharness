@@ -73,3 +73,27 @@ describe('agents-marketplace adapter without category', () => {
     expect(manifest.plugins[0]).not.toHaveProperty('category')
   })
 })
+
+describe('agents-marketplace adapter with harnesses.overrides.agents-marketplace', () => {
+  it('deep-merges interface.displayName from the override into marketplace.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-override-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: override-demo',
+        'version: 1.0.0',
+        'description: override fixture for agents-marketplace interface.displayName',
+        'harnesses:',
+        '  overrides:',
+        '    agents-marketplace:',
+        '      interface:',
+        '        displayName: Custom Display',
+      ].join('\n'),
+    )
+    const overrideModel = buildModel(dir)
+    const result = agentsMarketplace.emit(overrideModel)
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.agents/plugins/marketplace.json')!.content)
+    expect(manifest.interface.displayName).toBe('Custom Display')
+    expect(manifest.name).toBe('override-demo-dev')
+  })
+})
