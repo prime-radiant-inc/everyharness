@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { execSync } from 'node:child_process'
 import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,8 +13,9 @@ import { generate } from '../src/generate.js'
 // `git archive dev` (never touches the checkout's working tree or index --
 // archive reads straight from the object database regardless of what's
 // currently checked out); skips gracefully when the checkout isn't present
-// (CI on GitHub won't have it).
-const SUPERPOWERS_REPO = '/home/jesse/git/superpowers/superpowers'
+// (CI on GitHub won't have it). Overridable via EH_SUPERPOWERS_REPO for
+// machines where the checkout lives somewhere else.
+const SUPERPOWERS_REPO = process.env.EH_SUPERPOWERS_REPO ?? '/home/jesse/git/superpowers/superpowers'
 const SUPERPOWERS_AVAILABLE = existsSync(join(SUPERPOWERS_REPO, '.git'))
 
 // The hand-maintained manifests this test regenerates and compares. Also
@@ -207,16 +208,25 @@ function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): 
 
 if (!SUPERPOWERS_AVAILABLE) {
   console.log(
-    `[dogfood] superpowers checkout not found at ${SUPERPOWERS_REPO} (or has no .git) -- skipping the dogfood test. Clone https://github.com/obra/superpowers there to run it locally.`,
+    `[dogfood] superpowers checkout not found at ${SUPERPOWERS_REPO} (or has no .git) -- skipping the dogfood test. Clone https://github.com/obra/superpowers there, or set EH_SUPERPOWERS_REPO to point at an existing checkout, to run it locally.`,
   )
 }
 
+// The COMPARED_FILES with no EXPECTED_DIFFERENCES entry -- the README's "4 of
+// 8 byte-exact" claim is about these four. Derived rather than hardcoded so
+// it can't drift from EXPECTED_DIFFERENCES itself (e.g. if one of the two
+// FINDING gaps above is ever fixed and its entry removed).
+const DIFFERENCED_FILES = new Set(EXPECTED_DIFFERENCES.map((d) => d.file))
+const BYTE_EXACT_FILES = COMPARED_FILES.filter((file) => !DIFFERENCED_FILES.has(file))
+
 describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-maintained manifests', () => {
   const originals: Record<ComparedFile, Record<string, unknown>> = {} as Record<ComparedFile, Record<string, unknown>>
+  const originalsRaw: Record<ComparedFile, string> = {} as Record<ComparedFile, string>
   const generated: Record<ComparedFile, Record<string, unknown>> = {} as Record<ComparedFile, Record<string, unknown>>
+  let dir: string
 
   beforeAll(() => {
-    const dir = mkdtempSync(join(tmpdir(), 'eh-dogfood-'))
+    dir = mkdtempSync(join(tmpdir(), 'eh-dogfood-'))
 
     // Read-only on the source repo: `git archive` reads straight from the
     // object database at the `dev` ref, regardless of the checkout's
@@ -224,7 +234,8 @@ describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-ma
     execSync(`git -C "${SUPERPOWERS_REPO}" archive dev | tar -x -C "${dir}"`)
 
     for (const file of COMPARED_FILES) {
-      originals[file] = readJson(join(dir, file))
+      originalsRaw[file] = readFileSync(join(dir, file), 'utf8')
+      originals[file] = JSON.parse(originalsRaw[file])
     }
 
     for (const path of HAND_MAINTAINED_PATHS) {
@@ -240,10 +251,20 @@ describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-ma
     }
   })
 
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   for (const file of COMPARED_FILES) {
     it(`regenerates ${file} to match the real manifest, modulo documented differences`, () => {
       const { generated: g, original: o } = withExpectedDifferencesRemoved(file, generated[file], originals[file])
       expect(g).toEqual(o)
+    })
+  }
+
+  for (const file of BYTE_EXACT_FILES) {
+    it(`regenerates ${file} byte-for-byte (no documented differences to mask)`, () => {
+      expect(readFileSync(join(dir, file), 'utf8')).toBe(originalsRaw[file])
     })
   }
 })

@@ -101,11 +101,14 @@ function installMatrixTable(activeAdapters: HarnessAdapter[]): string {
 // Injects the install matrix into the plugin's README.md, between two
 // hand-placed markers. README.md is a user file — never created, never
 // manifest-tracked, never touched by validate — so this runs outside the
-// FileSet/manifest machinery generate() uses for everything else. Absence of
-// either marker, or the markers in the wrong order, is treated the same as
-// "no README": an informational warning, nothing written. `model` is
-// threaded through for parity with emitDocs's signature; the table itself
-// doesn't need it yet.
+// FileSet/manifest machinery generate() uses for everything else. No
+// README.md at all is silent (nothing to inject into, nothing written, no
+// warning) since most component-only plugins won't have one; a README.md
+// that exists but lacks either marker (or has them in the wrong order) DOES
+// warn — that's a plugin author who has a README but hasn't opted into
+// install-matrix injection yet, worth flagging. `model` is threaded through
+// for parity with emitDocs's signature; the table itself doesn't need it
+// yet.
 export function injectReadme(
   root: string,
   model: PluginModel,
