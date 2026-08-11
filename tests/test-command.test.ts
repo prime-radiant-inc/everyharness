@@ -157,6 +157,8 @@ describe('checks/run-checks.sh', () => {
   // FALLBACK-file-presence path keeps this green, and any other genuinely
   // absent tool (e.g. claude, gemini) degrades to a `skip` line rather than
   // a failure — so this assertion holds on any dev machine or CI runner.
+  // 30s timeout: the script shells out to real claude/gemini binaries when
+  // present, which can be slow under full-suite CPU contention.
   it('exits 0 with an "ok codex:" line and no "not ok" lines against a generated kitchen-sink plugin', () => {
     const dir = generatedKitchenSink()
     const result = spawnSync('bash', [CHECKS_SCRIPT], {
@@ -166,7 +168,7 @@ describe('checks/run-checks.sh', () => {
     expect(result.stdout).toContain('ok codex:')
     expect(result.stdout).not.toMatch(/^not ok /m)
     expect(result.status).toBe(0)
-  })
+  }, 30_000)
 
   // Corrupting a generated manifest into invalid JSON forces a "not ok" line
   // (check_manifest_harness's `jq empty` fails), which must produce the
