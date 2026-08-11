@@ -499,6 +499,8 @@ droid plugin marketplace add https://github.com/prime-radiant-inc/everyharness
 droid plugin install kitchen-sink@everyharness
 \`\`\`
 
+Note: Droid names the marketplace after the repository source (its basename), not the descriptor's declared name — so the install id differs from Copilot's.
+
 On Copilot:
 
 \`\`\`

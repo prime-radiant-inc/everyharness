@@ -131,4 +131,39 @@ describe('agents-marketplace adapter installDoc', () => {
     const doc = agentsMarketplace.installDoc!(noRepoModel)
     expect(doc).toContain('@<your-repo>')
   })
+
+  it('strips .git suffix from repository basename', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-dotgit-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: elements-of-style',
+        'version: 1.0.0',
+        'description: test fixture for .git suffix handling',
+        'repository: https://github.com/obra/elements-of-style.git',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    // droid should use repo basename without .git suffix in the install command
+    expect(doc).toContain('droid plugin install elements-of-style@elements-of-style')
+    expect(doc).not.toContain('@elements-of-style.git')
+  })
+
+  it('strips trailing slash from repository URL', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-trailingslash-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: elements-of-style',
+        'version: 1.0.0',
+        'description: test fixture for trailing slash handling',
+        'repository: https://github.com/obra/elements-of-style/',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    // droid should use repo basename, properly handling trailing slash
+    expect(doc).toContain('droid plugin install elements-of-style@elements-of-style')
+  })
 })

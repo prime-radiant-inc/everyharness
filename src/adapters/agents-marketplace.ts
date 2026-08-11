@@ -45,7 +45,7 @@ function installDoc(model: PluginModel): string {
   const { config } = model
   const url = config.repository ?? '<your-repo>'
   const repoName = config.repository
-    ? (config.repository.split('/').pop() ?? '').replace(/\.git$/, '') || '<your-repo>'
+    ? (config.repository.replace(/\/+$/, '').split('/').pop() ?? '').replace(/\.git$/, '') || '<your-repo>'
     : '<your-repo>'
 
   const lines = [
@@ -61,6 +61,8 @@ function installDoc(model: PluginModel): string {
     `droid plugin marketplace add ${url}`,
     `droid plugin install ${config.name}@${repoName}`,
     '```',
+    '',
+    'Note: Droid names the marketplace after the repository source (its basename), not the descriptor\'s declared name — so the install id differs from Copilot\'s.',
     '',
     'On Copilot:',
     '',
