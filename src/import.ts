@@ -66,6 +66,7 @@ function extractInlineComponent(
   inlineValue: unknown,
   found: string[],
   warnings: string[],
+  createdPaths: string[],
 ): boolean {
   const abs = join(rootAbs, defaultPath)
   if (existsSync(abs)) {
@@ -74,6 +75,7 @@ function extractInlineComponent(
   }
   mkdirSync(dirname(abs), { recursive: true })
   writeFileSync(abs, `${JSON.stringify({ [wrapKey]: inlineValue }, null, 2)}\n`)
+  createdPaths.push(abs)
   found.push(`${foundLabel} (inlined to ${defaultPath})`)
   warnings.push(`plugin.json's ${jsonKey} was defined inline; extracted to ${defaultPath}`)
   return true
@@ -177,6 +179,11 @@ export function importPlugin(root: string): ImportResult {
   // point cluttering the yaml with a value loadConfig would infer anyway).
   const found: string[] = []
   const components: Record<string, string> = {}
+  // Files extractInlineComponent creates this run — unlinked alongside
+  // everyharness.yaml if loadConfig rejects the result below, so a bad
+  // custom component path doesn't leave an orphaned .mcp.json/hooks.json
+  // behind from an otherwise-failed import.
+  const createdPaths: string[] = []
 
   const skillsPath = resolveComponentPath(pluginJson, 'skills', DEFAULT_PATHS.skills)
   const skillDirs = listSkillDirs(rootAbs, skillsPath)
@@ -203,7 +210,17 @@ export function importPlugin(root: string): ImportResult {
   const hooksInline = hooksRaw !== undefined && typeof hooksRaw !== 'string' ? hooksRaw : undefined
   const hooksExtracted =
     hooksInline !== undefined &&
-    extractInlineComponent(rootAbs, DEFAULT_PATHS.hooks, 'hooks', 'hooks', 'hooks', hooksInline, found, warnings)
+    extractInlineComponent(
+      rootAbs,
+      DEFAULT_PATHS.hooks,
+      'hooks',
+      'hooks',
+      'hooks',
+      hooksInline,
+      found,
+      warnings,
+      createdPaths,
+    )
   if (!hooksExtracted) {
     const hooksPath = resolveComponentPath(pluginJson, 'hooks', DEFAULT_PATHS.hooks)
     if (fileExists(rootAbs, hooksPath)) {
@@ -216,7 +233,17 @@ export function importPlugin(root: string): ImportResult {
   const mcpInline = mcpRaw !== undefined && typeof mcpRaw !== 'string' ? mcpRaw : undefined
   const mcpExtracted =
     mcpInline !== undefined &&
-    extractInlineComponent(rootAbs, DEFAULT_PATHS.mcp, 'mcpServers', 'mcp', 'mcpServers', mcpInline, found, warnings)
+    extractInlineComponent(
+      rootAbs,
+      DEFAULT_PATHS.mcp,
+      'mcpServers',
+      'mcp',
+      'mcpServers',
+      mcpInline,
+      found,
+      warnings,
+      createdPaths,
+    )
   if (!mcpExtracted) {
     const mcpPath = resolveComponentPath(pluginJson, 'mcpServers', DEFAULT_PATHS.mcp)
     if (fileExists(rootAbs, mcpPath)) {
@@ -258,6 +285,7 @@ export function importPlugin(root: string): ImportResult {
     loadConfig(rootAbs)
   } catch (e) {
     unlinkSync(configPath)
+    for (const path of createdPaths) unlinkSync(path)
     throw new ConfigError(
       `import produced an invalid everyharness.yaml (${(e as Error).message}); fix .claude-plugin/plugin.json and re-run`,
       [],

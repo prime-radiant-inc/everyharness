@@ -290,6 +290,23 @@ describe('importPlugin', () => {
     expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(false)
   })
 
+  it('cleans up an inline-extracted .mcp.json when loadConfig fails after a bad custom path', () => {
+    const dir = tmpDir('eh-import-cleanup-')
+    writePluginJson(dir, {
+      name: 'cleanup-case',
+      version: '1.0.0',
+      description: 'Cleanup case',
+      commands: '/abs/path',
+      mcpServers: { demo: { command: 'node' } },
+    })
+    writeMd(dir, 'abs/path', 'x')
+
+    expect(() => importPlugin(dir)).toThrow(/invalid everyharness\.yaml/)
+
+    expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(false)
+    expect(existsSync(join(dir, '.mcp.json'))).toBe(false)
+  })
+
   it('throws a ConfigError and removes the written yaml when a custom commands path traverses out of the plugin root', () => {
     const base = tmpDir('eh-import-traversal-')
     const dir = join(base, 'plugin')
@@ -361,7 +378,9 @@ describe('CLI import command', () => {
     expect(first.stdout).toContain('found: agents (1)')
     expect(first.stdout).toContain('found: hooks')
     expect(first.stdout).toContain('found: mcp')
-    expect(first.stdout).toContain('Wrote everyharness.yaml — review it, then run everyharness generate')
+    expect(first.stdout).toContain(
+      'Wrote everyharness.yaml — review it, then run everyharness generate. Note: generate will report conflicts with your existing hand-maintained harness files (e.g. .claude-plugin/plugin.json); after reviewing, re-run with --force to let everyharness own them.',
+    )
     expect(existsSync(join(dir, 'everyharness.yaml'))).toBe(true)
 
     const second = runCli(['import'], dir)
