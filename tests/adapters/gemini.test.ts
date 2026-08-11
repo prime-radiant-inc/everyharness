@@ -262,6 +262,26 @@ describe('gemini TOML command translation: embedded triple quotes', () => {
   })
 })
 
+describe('gemini TOML command translation: backslash escaping in body', () => {
+  it.skipIf(!TOMLLIB_AVAILABLE)('escapes backslashes in the body and round-trips through tomllib to the original body', () => {
+    const dir = tmpFixture(
+      'name: backslash-demo\nversion: 1.0.0\ndescription: backslash-body fixture\nbootstrap:\n  none: true\n',
+    )
+    mkdirSync(join(dir, 'commands'), { recursive: true })
+    const originalBody = "Run grep '\\d+' and C:\\path please.\n"
+    writeFileSync(
+      join(dir, 'commands', 'slash.md'),
+      `---\ndescription: Backslash body test\n---\n${originalBody}`,
+    )
+    const slashModel = buildModel(dir)
+    const result = gemini.emit(slashModel)
+    const toml = result.files.find((f) => f.path === 'commands/slash.toml')!.content
+
+    const parsed = tomlParse(toml)
+    expect(parsed.prompt).toBe(originalBody)
+  })
+})
+
 describe('gemini TOML command translation: bootstrap-mode independence', () => {
   it('still emits commands/*.toml under bootstrap.generate and bootstrap: none', () => {
     for (const bootstrapYaml of ['bootstrap:\n  generate: true\n', 'bootstrap:\n  none: true\n']) {

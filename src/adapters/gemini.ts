@@ -38,6 +38,12 @@ function commandFile(cmd: CommandRef, warnings: string[]): GeneratedFile {
     )
   }
   let body = cmd.body.replace(/\$ARGUMENTS(?!\w)/g, '{{args}}')
+  // TOML basic multiline strings treat `\` as the start of an escape
+  // sequence, so a literal backslash in the body (e.g. a regex or a Windows
+  // path) must be doubled. This must run before the `"""` handling below --
+  // otherwise the backslash that escaping introduces there would itself get
+  // re-escaped.
+  body = body.replace(/\\/g, '\\\\')
   // A literal `"""` in the body would prematurely close the TOML basic
   // multiline string. Escaping one of the three quotes (`""\"`) decodes back
   // to `"""` on parse, so the round-tripped prompt content is unchanged.
