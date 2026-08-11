@@ -44,6 +44,20 @@ describe('generate', () => {
     expect(manifest.files['docs/support-matrix.md']).toBeDefined()
   })
 
+  it('prunes docs/install/<name>.md when its adapter is later excluded, like any other generated file', () => {
+    const dir = freshFixture()
+    generate(dir)
+    expect(existsSync(join(dir, 'docs/install/claude-code.md'))).toBe(true)
+
+    const yaml = readFileSync(join(dir, 'everyharness.yaml'), 'utf8')
+    writeFileSync(join(dir, 'everyharness.yaml'), yaml.replace('harnesses:\n', 'harnesses:\n  exclude: [claude-code]\n'))
+    const result = generate(dir)
+
+    expect(result.pruned).toContain('docs/install/claude-code.md')
+    expect(existsSync(join(dir, 'docs/install/claude-code.md'))).toBe(false)
+    expect(existsSync(join(dir, 'docs/support-matrix.md'))).toBe(true) // unaffected: independent of the active adapter list
+  })
+
   it('is idempotent', () => {
     const dir = freshFixture()
     generate(dir)
