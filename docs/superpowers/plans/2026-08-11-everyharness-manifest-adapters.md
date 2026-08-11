@@ -354,7 +354,7 @@ escape_for_json() {
 }
 
 bootstrap_escaped=$(escape_for_json "$bootstrap_content")
-session_context="<plugin-bootstrap plugin=\"__PLUGIN_NAME__\">\nThe following skill from the __PLUGIN_NAME__ plugin is loaded at session start:\n\n${bootstrap_escaped}\n</plugin-bootstrap>"
+session_context="<plugin-bootstrap plugin=\\\"__PLUGIN_NAME__\\\">\nThe following skill from the __PLUGIN_NAME__ plugin is loaded at session start:\n\n${bootstrap_escaped}\n</plugin-bootstrap>"
 
 if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
   printf '{\n  "additional_context": "%s"\n}\n' "$session_context" | cat
