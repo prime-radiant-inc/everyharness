@@ -68,9 +68,10 @@ interface ExpectedDifference {
 // below deletes that key from BOTH the generated and original objects
 // before asserting deep equality, so an entry only masks the exact
 // difference it names -- anything else still fails the test. This list is
-// the acceptance criterion: an undocumented difference fails; see the task
-// report for the two entries that are genuine everyharness expressiveness
-// gaps (marked FINDING) versus the two that are intentional design.
+// the acceptance criterion: an undocumented difference fails; see
+// docs/superpowers/plans/2026-08-11-dogfood-findings.md for the two entries
+// that are genuine everyharness expressiveness gaps (marked FINDING) versus
+// the two that are intentional design.
 const EXPECTED_DIFFERENCES: ExpectedDifference[] = [
   {
     file: '.claude-plugin/plugin.json',
