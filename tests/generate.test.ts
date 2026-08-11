@@ -25,7 +25,7 @@ describe('generate', () => {
   it('writes adapter files and a clean manifest', () => {
     const dir = freshFixture()
     const result = generate(dir)
-    expect(result.adaptersRun).toEqual(['claude-code', 'cursor', 'codex', 'devin', 'kimi', 'gemini', 'opencode', 'pi', 'agent-plugins-1.0', 'agents-marketplace'])
+    expect(result.adaptersRun).toEqual(['claude-code', 'cursor', 'codex', 'devin', 'kimi', 'gemini', 'opencode', 'pi', 'hermes', 'agent-plugins-1.0', 'agents-marketplace'])
     expect(existsSync(join(dir, '.claude-plugin/plugin.json'))).toBe(true)
     expect(existsSync(join(dir, MANIFEST_PATH))).toBe(true)
     expect(checkDrift(dir).clean).toBe(true)
@@ -46,7 +46,7 @@ describe('generate', () => {
     const patched = yaml.replace('harnesses:\n', 'harnesses:\n  exclude: [claude-code]\n')
     writeFileSync(join(dir, 'everyharness.yaml'), patched)
     const result = generate(dir)
-    expect(result.adaptersRun).toEqual(['cursor', 'codex', 'devin', 'kimi', 'gemini', 'opencode', 'pi', 'agent-plugins-1.0', 'agents-marketplace'])
+    expect(result.adaptersRun).toEqual(['cursor', 'codex', 'devin', 'kimi', 'gemini', 'opencode', 'pi', 'hermes', 'agent-plugins-1.0', 'agents-marketplace'])
     expect(existsSync(join(dir, '.claude-plugin/plugin.json'))).toBe(false)
   })
 

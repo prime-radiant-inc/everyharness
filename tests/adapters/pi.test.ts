@@ -94,12 +94,12 @@ function typeCheckExitStatus(source: string): number | null {
 }
 
 describe('adapter registry', () => {
-  it('registers pi between opencode and agent-plugins-1.0', () => {
+  it('registers pi between opencode and hermes', () => {
     const names = adapters.map((a) => a.name)
     expect(names).toContain('pi')
     expect(getAdapter('pi')).toBe(pi)
     expect(names.indexOf('pi')).toBe(names.indexOf('opencode') + 1)
-    expect(names.indexOf('pi')).toBe(names.indexOf('agent-plugins-1.0') - 1)
+    expect(names.indexOf('pi')).toBe(names.indexOf('hermes') - 1)
   })
 })
 
