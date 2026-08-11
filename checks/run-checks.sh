@@ -98,10 +98,16 @@ check_pi() {
     skip "$harness" "not generated"
     return
   fi
-  if command -v bun >/dev/null 2>&1 && bun -e "await import('$file')" >/dev/null 2>&1; then
+  if ! command -v bun >/dev/null 2>&1; then
+    # Fallback covers ONLY bun's absence; a present-but-failing import is a real failure.
+    ok "$harness" ".pi/extensions/${EH_PLUGIN_NAME}.ts present (FALLBACK-file-presence: bun not installed)"
+    return
+  fi
+  local out
+  if out=$(bun -e "await import('$file')" 2>&1); then
     ok "$harness" "bun import of .pi/extensions/${EH_PLUGIN_NAME}.ts succeeded"
   else
-    ok "$harness" ".pi/extensions/${EH_PLUGIN_NAME}.ts present (FALLBACK-file-presence: bun missing or import failed)"
+    not_ok "$harness" "bun import of .pi/extensions/${EH_PLUGIN_NAME}.ts failed: $(oneline "$out")"
   fi
 }
 
