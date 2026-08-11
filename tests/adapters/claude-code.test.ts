@@ -114,6 +114,71 @@ describe('claude-code adapter with bootstrap.generate', () => {
   })
 })
 
+describe('claude-code adapter installDoc', () => {
+  it('produces an exact body for the kitchen-sink fixture: emitted files, marketplace mechanism, hooks-merge caveat', () => {
+    expect(claudeCode.installDoc!(model)).toBe(
+      [
+        '## What gets emitted',
+        '',
+        '- `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`',
+        '- the `hooks/everyharness` bootstrap hook and its merged `hooks/everyharness/hooks.json`',
+        '',
+        '## Installing',
+        '',
+        'Register the marketplace, then install the plugin:',
+        '',
+        '```',
+        'claude /plugin marketplace add prime-radiant-inc/everyharness',
+        '```',
+        '',
+        '```',
+        '/plugin install kitchen-sink@kitchen-sink-dev',
+        '```',
+        '',
+        "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",
+        '',
+        '## Caveats',
+        '',
+        '- Hand-written entries in `hooks/hooks.json` are merged into the generated `hooks/everyharness/hooks.json`; edit the source file, not the generated file.',
+      ].join('\n'),
+    )
+  })
+
+  it('falls back to <your-repo> when config.repository is absent', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-norepo-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-repo\nversion: 1.0.0\ndescription: no repository fixture\nbootstrap:\n  none: true\n',
+    )
+    const noRepoModel = buildModel(dir)
+    const body = claudeCode.installDoc!(noRepoModel)
+    expect(body).toContain('claude /plugin marketplace add <your-repo>')
+    expect(body).toContain('/plugin install no-repo@no-repo-dev')
+  })
+
+  it('falls back to <your-repo> when config.repository is not a github.com URL', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-nongithub-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: non-github\nversion: 1.0.0\ndescription: non-github repository fixture\nrepository: https://gitlab.com/owner/repo\nbootstrap:\n  none: true\n',
+    )
+    const nonGithubModel = buildModel(dir)
+    expect(claudeCode.installDoc!(nonGithubModel)).toContain('claude /plugin marketplace add <your-repo>')
+  })
+
+  it('omits the bootstrap hook line and the Caveats section when bootstrap is not active', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-nobootstrap-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-bootstrap\nversion: 1.0.0\ndescription: no bootstrap fixture\nbootstrap:\n  none: true\n',
+    )
+    const noBootstrapModel = buildModel(dir)
+    const body = claudeCode.installDoc!(noBootstrapModel)
+    expect(body).not.toContain('bootstrap hook')
+    expect(body).not.toContain('## Caveats')
+  })
+})
+
 describe('claude-code adapter with a non-default skills path', () => {
   it('emits a skills key in plugin.json pointing at the custom directory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-'))

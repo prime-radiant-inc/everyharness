@@ -4,7 +4,7 @@ import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json } from './shared.js'
+import { baseManifestFields, json, githubOwnerRepo } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -70,6 +70,52 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
   return marketplace
 }
 
+// Ground truth per Design decision 4: `claude /plugin marketplace add REPO`
+// then `/plugin install <name>@<name>-dev`, with REPO substituted from
+// config.repository when it's a github.com URL and a `<your-repo>`
+// placeholder otherwise (never a fabricated marketplace listing).
+function installDoc(model: PluginModel): string {
+  const { config } = model
+  const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
+  const bootstrapActive = config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate'
+
+  const emitted = ['`.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`']
+  if (bootstrapActive) {
+    emitted.push(
+      `the \`${BOOTSTRAP_HOOKS_DIR}\` bootstrap hook and its merged \`${BOOTSTRAP_HOOKS_JSON_PATH}\``,
+    )
+  }
+
+  const lines = [
+    '## What gets emitted',
+    '',
+    ...emitted.map((e) => `- ${e}`),
+    '',
+    '## Installing',
+    '',
+    'Register the marketplace, then install the plugin:',
+    '',
+    '```',
+    `claude /plugin marketplace add ${repo}`,
+    '```',
+    '',
+    '```',
+    `/plugin install ${config.name}@${config.name}-dev`,
+    '```',
+    '',
+    "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",
+  ]
+  if (bootstrapActive) {
+    lines.push(
+      '',
+      '## Caveats',
+      '',
+      `- Hand-written entries in \`${config.components.hooks}\` are merged into the generated \`${BOOTSTRAP_HOOKS_JSON_PATH}\`; edit the source file, not the generated file.`,
+    )
+  }
+  return lines.join('\n')
+}
+
 export const claudeCode: HarnessAdapter = {
   name: 'claude-code',
   support: {
@@ -80,6 +126,7 @@ export const claudeCode: HarnessAdapter = {
     mcp: 'full',
     bootstrap: 'full',
   },
+  installDoc,
   emit(model: PluginModel): EmitResult {
     const { config } = model
     const warnings: string[] = []
