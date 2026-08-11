@@ -36,6 +36,7 @@ describe('buildModel', () => {
         name: 'ks-hello',
         path: 'commands/ks-hello.md',
         description: 'Say hello from the kitchen-sink fixture',
+        body: '\nSay a cheerful hello to $ARGUMENTS (default: the current user).\n',
       },
     ])
     expect(model.agents[0]).toMatchObject({ name: 'ks-reviewer', path: 'agents/ks-reviewer.md' })

@@ -12,11 +12,14 @@ export interface CommandRef {
   name: string
   path: string
   description?: string
+  body: string
 }
 export interface AgentRef {
   name: string
   path: string
   description?: string
+  tools?: string
+  body: string
 }
 export interface PluginModel {
   root: string
@@ -49,14 +52,15 @@ function readMarkdownComponents(root: string, dir: string): Array<{
   name: string
   path: string
   data: Record<string, unknown>
+  body: string
 }> {
   const abs = join(root, dir)
   if (!existsSync(abs)) return []
   return readdirSync(abs)
     .filter((f) => f.endsWith('.md'))
     .map((f) => {
-      const { data } = parseFrontmatter(readFileSync(join(abs, f), 'utf8'))
-      return { name: f.replace(/\.md$/, ''), path: `${dir}/${f}`, data }
+      const { data, body } = parseFrontmatter(readFileSync(join(abs, f), 'utf8'))
+      return { name: f.replace(/\.md$/, ''), path: `${dir}/${f}`, data, body }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 }
@@ -93,12 +97,15 @@ export function buildModel(root: string): PluginModel {
     name: c.name,
     path: c.path,
     description: stringOr(c.data, 'description'),
+    body: c.body,
   }))
   const agents = readMarkdownComponents(root, config.components.agents)
     .map((a) => ({
       name: typeof a.data.name === 'string' ? a.data.name : a.name,
       path: a.path,
       description: stringOr(a.data, 'description'),
+      tools: stringOr(a.data, 'tools'),
+      body: a.body,
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
   const model: PluginModel = {
