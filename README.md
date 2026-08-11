@@ -1,13 +1,21 @@
 # everyharness
 
+> [!WARNING]
+> **Work in progress — pre-alpha.** Only the core pipeline and the Claude Code
+> adapter exist today. The other harness adapters, `init`/`import`, generated
+> install docs, and container-based install testing are still being built.
+> Not yet published to npm. Everything — including the `everyharness.yaml`
+> schema and the generation-manifest format — may change without notice.
+> Don't depend on this yet.
+
 Generate a coding-agent plugin for every harness from one config file.
 
-One `everyharness.yaml` is the source of truth; `everyharness generate` emits
-native plugin manifests, bootstrap wiring, docs, and tests for every supported
-coding-agent harness (Claude Code, Codex, Gemini CLI, Cursor, Copilot CLI,
-OpenCode, Pi, Kimi Code, Hermes, Devin CLI, Factory Droid, Grok Build CLI,
-Antigravity). Generated files are committed; `everyharness validate` catches
-drift in CI.
+The goal: one `everyharness.yaml` as the source of truth, with
+`everyharness generate` emitting native plugin manifests, bootstrap wiring,
+docs, and tests for every supported coding-agent harness (Claude Code, Codex,
+Gemini CLI, Cursor, Copilot CLI, OpenCode, Pi, Kimi Code, Hermes, Devin CLI,
+Factory Droid, Grok Build CLI, Antigravity). Generated files are committed;
+`everyharness validate` catches drift in CI.
 
 ## Usage
 
@@ -17,8 +25,8 @@ npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 ```
 
-Currently generated: Claude Code. The other harnesses land adapter by adapter
-(see `docs/superpowers/plans/`).
+**Current status: only Claude Code generation works.** The other harnesses
+land adapter by adapter (see `docs/superpowers/plans/`).
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 
