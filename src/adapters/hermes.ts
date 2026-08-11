@@ -3,6 +3,7 @@ import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { bootstrapContentPath } from '../bootstrap/node-package.js'
+import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
 
 // Hermes' Python plugin module (`.hermes-plugin/__init__.py`), modeled
 // directly on superpowers' own `.hermes-plugin/__init__.py`: a two-layout
@@ -210,6 +211,13 @@ export const hermes: HarnessAdapter = {
   emit(model: PluginModel): EmitResult {
     const warnings: string[] = []
     const files: GeneratedFile[] = [pluginYamlFile(model), initPyFile(model)]
+    // hermes' __init__.py reads GENERATED_BOOTSTRAP_PATH at runtime (via
+    // bootstrapContentPath above) in bootstrap.generate mode -- it must also
+    // emit that file itself so the path it reads actually exists when
+    // hermes is the only active in-process adapter.
+    if (model.config.bootstrap.kind === 'generate') {
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+    }
 
     if (model.commands.length) warnings.push('commands are not emitted for hermes')
     if (model.agents.length) warnings.push('agents are not emitted for hermes')

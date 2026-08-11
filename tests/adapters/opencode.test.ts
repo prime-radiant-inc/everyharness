@@ -138,6 +138,13 @@ describe('opencode adapter with bootstrap.generate', () => {
     expect(js).toContain(`path.resolve(__dirname, '../../${GENERATED_BOOTSTRAP_PATH}')`)
     expect(js).not.toMatch(/__[A-Z_]+__/)
   })
+
+  it('emits the generated bootstrap.md file itself, not just a reference to it', () => {
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const genModel = buildModel(dir)
+    const bootstrapMd = opencode.emit(genModel).files.find((f) => f.path === GENERATED_BOOTSTRAP_PATH)
+    expect(bootstrapMd?.content).toContain('# gen-demo plugin')
+  })
 })
 
 describe('opencode adapter with bootstrap: none', () => {

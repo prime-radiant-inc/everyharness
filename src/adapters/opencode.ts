@@ -4,6 +4,7 @@ import type { PluginModel, CommandRef, AgentRef } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { json } from './shared.js'
 import { nodePackageManifest, opencodePluginPath, bootstrapContentPath } from '../bootstrap/node-package.js'
+import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
 
 // Marker text for command/agent files, placed as a `#` YAML comment inside
 // the frontmatter block -- see yamlFrontmatter below for why.
@@ -214,6 +215,13 @@ export const opencode: HarnessAdapter = {
       ...model.commands.map(commandFile),
       ...model.agents.map(agentFile),
     ]
+    // opencode's plugin module reads GENERATED_BOOTSTRAP_PATH at runtime
+    // (via bootstrapContentPath above) in bootstrap.generate mode -- it must
+    // also emit that file itself so the path it reads actually exists when
+    // opencode is the only active in-process adapter.
+    if (model.config.bootstrap.kind === 'generate') {
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+    }
 
     if (model.hooks !== undefined) warnings.push('hooks are not emitted for opencode')
     if (model.mcp !== undefined) warnings.push('mcp servers are not emitted for opencode in v1')

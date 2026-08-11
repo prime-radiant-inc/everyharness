@@ -157,6 +157,13 @@ describe('hermes adapter with bootstrap.generate', () => {
       provides_hooks: ['pre_llm_call'],
     })
   })
+
+  it('emits the generated bootstrap.md file itself, not just a reference to it', () => {
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const genModel = buildModel(dir)
+    const bootstrapMd = hermes.emit(genModel).files.find((f) => f.path === GENERATED_BOOTSTRAP_PATH)
+    expect(bootstrapMd?.content).toContain('# gen-demo plugin')
+  })
 })
 
 describe('hermes adapter with bootstrap: none', () => {

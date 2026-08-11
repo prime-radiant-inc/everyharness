@@ -3,6 +3,7 @@ import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { json } from './shared.js'
 import { nodePackageManifest, piExtensionPath, bootstrapContentPath } from '../bootstrap/node-package.js'
+import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
 
 // Pi's extension loader (`.pi/extensions/<name>.ts`), modeled directly on
 // superpowers' own `.pi/extensions/superpowers.ts`: `resources_discover`
@@ -187,6 +188,13 @@ export const pi: HarnessAdapter = {
       { path: 'package.json', content: json(nodePackageManifest(model)) },
       extensionFile(model),
     ]
+    // pi's extension module reads GENERATED_BOOTSTRAP_PATH at runtime (via
+    // bootstrapContentPath above) in bootstrap.generate mode -- it must also
+    // emit that file itself so the path it reads actually exists when pi is
+    // the only active in-process adapter.
+    if (model.config.bootstrap.kind === 'generate') {
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+    }
 
     if (model.commands.length) warnings.push('commands are not emitted for pi')
     if (model.agents.length) warnings.push('agents are not emitted for pi')

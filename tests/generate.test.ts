@@ -5,6 +5,9 @@ import { join, dirname } from 'node:path'
 import { generate } from '../src/generate.js'
 import { MANIFEST_PATH, checkDrift } from '../src/manifest.js'
 import type { HarnessAdapter } from '../src/adapters/index.js'
+import { opencode } from '../src/adapters/opencode.js'
+import { pi } from '../src/adapters/pi.js'
+import { hermes } from '../src/adapters/hermes.js'
 
 const fullSupport = {
   skills: 'full',
@@ -275,6 +278,18 @@ describe('generate', () => {
     writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: {} }))
     const result = generate(dir)
     expect(result.warnings.some((w) => w.includes('found mcp.json at the plugin root'))).toBe(false)
+  })
+
+  it('emits hooks/everyharness/bootstrap.md when only the in-process adapters (opencode, pi, hermes) are active in bootstrap.generate mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-gen-inprocess-bootstrap-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: inprocess-demo\nversion: 1.0.0\ndescription: in-process adapters generate-mode fixture\nbootstrap:\n  generate: true\n',
+    )
+    const result = generate(dir, [opencode, pi, hermes])
+    expect(result.adaptersRun).toEqual(['opencode', 'pi', 'hermes'])
+    expect(existsSync(join(dir, 'hooks/everyharness/bootstrap.md'))).toBe(true)
+    expect(readFileSync(join(dir, 'hooks/everyharness/bootstrap.md'), 'utf8')).toContain('# inprocess-demo plugin')
   })
 
   it('does not refuse a pre-existing file whose content is byte-identical to what would be generated', () => {
