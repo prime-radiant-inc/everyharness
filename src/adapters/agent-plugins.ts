@@ -147,9 +147,20 @@ export const agentPlugins: HarnessAdapter = {
     warnings.push(...pluginWarnings)
     files.push({ path: 'plugin.json', content: json(manifest) })
 
-    const { manifest: mcp, warnings: mcpWarnings } = mcpManifest(model)
-    warnings.push(...mcpWarnings)
-    if (mcp) files.push({ path: 'mcp.json', content: json(mcp) })
+    // The Agent Plugins 1.0 on-disk name for the translated MCP config is
+    // mcp.json at the plugin root. When the everyharness source MCP config
+    // has been pointed at that same path (components.mcp: mcp.json), writing
+    // our translation there would clobber the user's actual source file —
+    // so we skip the emission and say why, rather than overwrite it.
+    if (config.components.mcp === 'mcp.json') {
+      warnings.push(
+        'mcp.json is occupied by the source MCP config (components.mcp); agent-plugins-1.0 mcp output skipped — rename the source to .mcp.json',
+      )
+    } else {
+      const { manifest: mcp, warnings: mcpWarnings } = mcpManifest(model)
+      warnings.push(...mcpWarnings)
+      if (mcp) files.push({ path: 'mcp.json', content: json(mcp) })
+    }
 
     if (config.components.skills !== 'skills') {
       warnings.push(

@@ -281,16 +281,30 @@ describe('generate', () => {
       '  mcp: mcp.json',
       'bootstrap:',
       '  none: true',
-      'harnesses:',
-      // agent-plugins-1.0 would otherwise try to emit its own translated
-      // mcp.json at this same path and collide with the source file — excluded
-      // here so the test isolates the stray-warning guard, not that unrelated
-      // pre-existing overwrite-source-path behavior.
-      '  exclude: [agent-plugins-1.0]',
     ].join('\n'))
-    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: {} }))
+    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
     const result = generate(dir)
     expect(result.warnings.some((w) => w.includes('found mcp.json at the plugin root'))).toBe(false)
+  })
+
+  it('succeeds with agent-plugins-1.0 active when components.mcp collides with the spec on-disk mcp.json name, warning instead of throwing', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-gen-mcp-collision-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), [
+      'name: explicit-mcp-json',
+      'version: 1.0.0',
+      'description: components.mcp explicitly set to mcp.json',
+      'components:',
+      '  mcp: mcp.json',
+      'bootstrap:',
+      '  none: true',
+    ].join('\n'))
+    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
+    const result = generate(dir)
+    expect(result.warnings).toContain(
+      '[agent-plugins-1.0] mcp.json is occupied by the source MCP config (components.mcp); agent-plugins-1.0 mcp output skipped — rename the source to .mcp.json',
+    )
+    expect(result.files.some((f) => f.path === 'mcp.json')).toBe(false)
+    expect(existsSync(join(dir, 'plugin.json'))).toBe(true)
   })
 
   it('emits hooks/everyharness/bootstrap.md when only the in-process adapters (opencode, pi, hermes) are active in bootstrap.generate mode', () => {

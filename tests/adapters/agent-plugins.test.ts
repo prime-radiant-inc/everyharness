@@ -171,6 +171,24 @@ describe('agent-plugins-1.0 with a non-default skills path', () => {
   })
 })
 
+describe('agent-plugins-1.0 mcp.json collision with the source MCP config', () => {
+  it('skips mcp.json emission and warns, but still emits plugin.json, when components.mcp is mcp.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-ap-mcp-collision-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: mcp-collision\nversion: 1.0.0\ndescription: mcp.json collision fixture\ncomponents:\n  mcp: mcp.json\nbootstrap:\n  none: true\n',
+    )
+    writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
+    const collisionModel = buildModel(dir)
+    const result = agentPlugins.emit(collisionModel)
+    expect(result.files.some((f) => f.path === 'mcp.json')).toBe(false)
+    expect(result.files.some((f) => f.path === 'plugin.json')).toBe(true)
+    expect(result.warnings).toEqual([
+      'mcp.json is occupied by the source MCP config (components.mcp); agent-plugins-1.0 mcp output skipped — rename the source to .mcp.json',
+    ])
+  })
+})
+
 describe('agent-plugins-1.0 with harnesses.overrides[agent-plugins-1.0].extensions', () => {
   it('copies only object-valued extension entries and warns about the rest', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-ext-'))
