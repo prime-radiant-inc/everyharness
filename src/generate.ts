@@ -1,8 +1,8 @@
 import { buildModel } from './model.js'
-import { writeFileSet, type FileSet } from './fileset.js'
+import { writeFileSet, type FileSet, type GeneratedFile } from './fileset.js'
 import { saveManifest } from './manifest.js'
 import { adapters, type HarnessAdapter } from './adapters/index.js'
-import { ConfigError } from './config.js'
+import { ConfigError, type EveryharnessConfig } from './config.js'
 
 export const TOOL_VERSION = '0.1.0'
 
@@ -12,28 +12,43 @@ export interface GenerateResult {
   adaptersRun: string[]
 }
 
+function isSourcePath(path: string, config: EveryharnessConfig): boolean {
+  if (path === 'everyharness.yaml') return true
+  if (path === config.components.hooks || path === config.components.mcp) return true
+  for (const dir of [config.components.skills, config.components.commands, config.components.agents]) {
+    if (path === dir || path.startsWith(`${dir}/`)) return true
+  }
+  return false
+}
+
 export function generate(root: string, adapterList: HarnessAdapter[] = adapters): GenerateResult {
   const model = buildModel(root)
   const excluded = new Set(model.config.harnesses.exclude)
   const active = adapterList.filter((a) => !excluded.has(a.name))
 
-  const files: FileSet = []
   const warnings: string[] = []
-  const owners = new Map<string, string>()
+  const byPath = new Map<string, { owner: string; file: GeneratedFile }>()
   for (const adapter of active) {
     const result = adapter.emit(model)
     for (const file of result.files) {
-      const owner = owners.get(file.path)
-      if (owner) {
-        throw new ConfigError(
-          `adapters "${owner}" and "${adapter.name}" both emit ${file.path}`,
-        )
+      if (isSourcePath(file.path, model.config)) {
+        throw new ConfigError(`adapter "${adapter.name}" would overwrite source file ${file.path}`)
       }
-      owners.set(file.path, adapter.name)
-      files.push(file)
+      const existing = byPath.get(file.path)
+      if (existing) {
+        const identical =
+          existing.file.content === file.content &&
+          Boolean(existing.file.executable) === Boolean(file.executable)
+        if (!identical) {
+          throw new ConfigError(`adapters "${existing.owner}" and "${adapter.name}" both emit ${file.path}`)
+        }
+        continue // identical content: dedupe silently
+      }
+      byPath.set(file.path, { owner: adapter.name, file })
     }
     warnings.push(...result.warnings.map((w) => `[${adapter.name}] ${w}`))
   }
+  const files: FileSet = [...byPath.values()].map((v) => v.file)
 
   writeFileSet(root, files)
   saveManifest(root, files, TOOL_VERSION)

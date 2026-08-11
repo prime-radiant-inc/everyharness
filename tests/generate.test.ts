@@ -95,4 +95,29 @@ describe('generate', () => {
     const result = generate(dir, [synthetic])
     expect(result.warnings).toEqual(['[synthetic] thing not supported'])
   })
+
+  it('dedupes identical-content collisions between adapters', () => {
+    const dir = freshFixture()
+    const file = { path: 'gen/shared.txt', content: 'same', executable: undefined }
+    const a = { name: 'adapter-a', support: fullSupport, emit: () => ({ files: [{ ...file }], warnings: [] }) }
+    const b = { name: 'adapter-b', support: fullSupport, emit: () => ({ files: [{ ...file }], warnings: [] }) }
+    const result = generate(dir, [a, b])
+    expect(result.files.filter((f) => f.path === 'gen/shared.txt')).toHaveLength(1)
+    expect(result.warnings).toEqual([])
+  })
+
+  it('still rejects differing-content collisions', () => {
+    const dir = freshFixture()
+    const a = { name: 'adapter-a', support: fullSupport, emit: () => ({ files: [{ path: 'gen/x.txt', content: 'one' }], warnings: [] }) }
+    const b = { name: 'adapter-b', support: fullSupport, emit: () => ({ files: [{ path: 'gen/x.txt', content: 'two' }], warnings: [] }) }
+    expect(() => generate(dir, [a, b])).toThrowError(/both emit/)
+  })
+
+  it('rejects an adapter emitting over a source component path', () => {
+    const dir = freshFixture()
+    const evil = { name: 'evil', support: fullSupport, emit: () => ({ files: [{ path: 'everyharness.yaml', content: 'gotcha' }], warnings: [] }) }
+    expect(() => generate(dir, [evil])).toThrowError(/would overwrite source/)
+    const evil2 = { name: 'evil2', support: fullSupport, emit: () => ({ files: [{ path: 'skills/greeting/SKILL.md', content: 'x' }], warnings: [] }) }
+    expect(() => generate(dir, [evil2])).toThrowError(/would overwrite source/)
+  })
 })
