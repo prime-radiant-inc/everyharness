@@ -374,10 +374,10 @@ describe('injectReadme', () => {
 
     const result = injectReadme(dir, model, readmeAdapters)
 
-    expect(result).toEqual({
-      injected: false,
-      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
-    })
+    expect(result.injected).toBe(false)
+    expect(result.warning).toBeDefined()
+    expect(result.warning).toContain('<!-- everyharness:install:start -->')
+    expect(result.warning).toContain('<!-- everyharness:install:end -->')
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(original)
   })
 
@@ -401,10 +401,10 @@ describe('injectReadme', () => {
 
     const result = injectReadme(dir, model, readmeAdapters)
 
-    expect(result).toEqual({
-      injected: false,
-      warning: 'README.md has no everyharness install markers; skipping install-matrix injection',
-    })
+    expect(result.injected).toBe(false)
+    expect(result.warning).toBeDefined()
+    expect(result.warning).toContain('<!-- everyharness:install:start -->')
+    expect(result.warning).toContain('<!-- everyharness:install:end -->')
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe(original)
   })
 })

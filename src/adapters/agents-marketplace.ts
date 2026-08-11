@@ -36,14 +36,17 @@ function marketplaceDescriptor(model: PluginModel): Record<string, unknown> {
   return override ? (deepMerge(descriptor, override) as Record<string, unknown>) : descriptor
 }
 
-// Ground truth per Design decision 4: `droid plugin marketplace add URL`
-// then `droid plugin install <name>@<name>-dev`, with URL substituted from
-// config.repository (falling back to `<your-repo>` when absent — never a
-// fabricated listing). Grok and Copilot follow the same descriptor via
-// analogous marketplace commands.
+// Ground truth per Design decision 4: droid names marketplaces by their source
+// (repo/directory basename), not the descriptor's declared name. So:
+// - droid: `droid plugin install <name>@<repo-basename>` (droid derives name from source)
+// - copilot: `copilot plugin install <name>@<name>-dev` (copilot honors declared name)
+// - grok: `grok plugin install <url> --trust` (grok takes a URL/path directly, no marketplace)
 function installDoc(model: PluginModel): string {
   const { config } = model
   const url = config.repository ?? '<your-repo>'
+  const repoName = config.repository
+    ? (config.repository.replace(/\/+$/, '').split('/').pop() ?? '').replace(/\.git$/, '') || '<your-repo>'
+    : '<your-repo>'
 
   const lines = [
     '## What gets emitted',
@@ -56,10 +59,25 @@ function installDoc(model: PluginModel): string {
     '',
     '```',
     `droid plugin marketplace add ${url}`,
-    `droid plugin install ${config.name}@${config.name}-dev`,
+    `droid plugin install ${config.name}@${repoName}`,
     '```',
     '',
-    "Grok and Copilot use analogous marketplace-add / plugin-install commands against the same descriptor. All three clients install the plugin's real claude-code-style layout (skills/, commands/, agents/, hooks/, .mcp.json) that this descriptor points at — their effective support matches claude-code's, not the all-`none` row this adapter reports in the support matrix (which reflects only the descriptor file itself, not what those clients receive through it). Consult each client's docs if these commands don't match your installed version.",
+    'Note: Droid names the marketplace after the repository source (its basename), not the descriptor\'s declared name — so the install id differs from Copilot\'s.',
+    '',
+    'On Copilot:',
+    '',
+    '```',
+    `copilot plugin marketplace add ${url}`,
+    `copilot plugin install ${config.name}@${config.name}-dev`,
+    '```',
+    '',
+    'On Grok:',
+    '',
+    '```',
+    `grok plugin install ${url} --trust`,
+    '```',
+    '',
+    "All three clients install the plugin's real claude-code-style layout (skills/, commands/, agents/, hooks/, .mcp.json) that this descriptor points at — their effective support matches claude-code's, not the all-`none` row this adapter reports in the support matrix (which reflects only the descriptor file itself, not what those clients receive through it). Consult each client's docs if these commands don't match your installed version.",
   ]
   return lines.join('\n')
 }

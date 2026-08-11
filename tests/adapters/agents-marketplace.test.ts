@@ -97,3 +97,73 @@ describe('agents-marketplace adapter with harnesses.overrides.agents-marketplace
     expect(manifest.name).toBe('override-demo-dev')
   })
 })
+
+describe('agents-marketplace adapter installDoc', () => {
+  it('uses repo basename for droid, declared name-dev for copilot, and URL for grok', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: elements-of-style',
+        'version: 1.0.0',
+        'description: test fixture for install doc',
+        'repository: https://github.com/obra/elements-of-style',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    // droid uses repo basename, not declared name with -dev
+    expect(doc).toContain('droid plugin install elements-of-style@elements-of-style')
+    expect(doc).not.toContain('droid plugin install elements-of-style@elements-of-style-dev')
+    // copilot uses declared name with -dev suffix
+    expect(doc).toContain('copilot plugin install elements-of-style@elements-of-style-dev')
+    // grok has its own command structure
+    expect(doc).toContain('grok plugin install')
+  })
+
+  it('falls back to <your-repo> when config.repository is absent', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-norepo-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-repo\nversion: 1.0.0\ndescription: no repository fixture\n',
+    )
+    const noRepoModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(noRepoModel)
+    expect(doc).toContain('@<your-repo>')
+  })
+
+  it('strips .git suffix from repository basename', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-dotgit-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: elements-of-style',
+        'version: 1.0.0',
+        'description: test fixture for .git suffix handling',
+        'repository: https://github.com/obra/elements-of-style.git',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    // droid should use repo basename without .git suffix in the install command
+    expect(doc).toContain('droid plugin install elements-of-style@elements-of-style')
+    expect(doc).not.toContain('@elements-of-style.git')
+  })
+
+  it('strips trailing slash from repository URL', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-trailingslash-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: elements-of-style',
+        'version: 1.0.0',
+        'description: test fixture for trailing slash handling',
+        'repository: https://github.com/obra/elements-of-style/',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    // droid should use repo basename, properly handling trailing slash
+    expect(doc).toContain('droid plugin install elements-of-style@elements-of-style')
+  })
+})

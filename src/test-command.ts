@@ -24,7 +24,10 @@ export interface TestResult {
 // Runs the container-backed offline install checks (checks/run-checks.sh)
 // against a generated plugin: `docker run --rm -e EH_PLUGIN_NAME=<name> -v
 // <plugin>:/plugin:ro -v <checks>:/checks:ro <image> bash
-// /checks/run-checks.sh`, streaming stdout/stderr through as it runs.
+// /checks/run-checks.sh`, streaming stdout/stderr through as it runs. The
+// script first parses every harness manifest, then performs a REAL install of
+// the plugin into each harness CLI in the image and asserts the CLI actually
+// enumerates the plugin's skills — all offline, no LLM, no API keys.
 //
 // Exit-code mapping: docker exit 0 (all checks passed) -> 0; docker exit 3
 // (the checks script found a failing check — a distinctive code chosen so
