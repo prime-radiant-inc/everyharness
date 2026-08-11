@@ -33,12 +33,17 @@ describe('CLI end-to-end', () => {
     expect(result.stdout).toContain('Generated')
   })
 
-  it('validate on a freshly generated plugin exits 0 clean', () => {
+  it('validate on a freshly generated plugin exits 2 with the known codex/SchemaStore schema gap', () => {
+    // See tests/validate.test.ts: the vendored codex schema doesn't model
+    // the `hooks: {}` escape hatch Design decision 8 requires, and
+    // kitchen-sink has no harnesses.overrides.codex.interface either, so
+    // .codex-plugin/plugin.json legitimately fails schema validation.
     const dir = tmpPluginDir()
     runCli(['generate'], dir)
     const result = runCli(['validate'], dir)
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('validate: clean')
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("schema: .codex-plugin/plugin.json: must have required property 'interface'")
+    expect(result.stderr).toContain('schema: .codex-plugin/plugin.json: must NOT have additional properties')
   })
 
   it('validate exits 3 and reports drift after the manifest is tampered with', () => {

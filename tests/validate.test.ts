@@ -14,13 +14,26 @@ function generatedFixture(): string {
 }
 
 describe('validate', () => {
-  it('passes on a freshly generated plugin', () => {
+  it('is drift-clean, with only the known codex/SchemaStore schema gap as schemaErrors', () => {
+    // The vendored codex schema (schemas/codex-plugin-manifest.json, fetched
+    // verbatim from SchemaStore) requires `interface` and forbids any
+    // `hooks` property (additionalProperties: false; `hooks` isn't in its
+    // property list). The codex adapter always emits `hooks: {}` regardless
+    // (Design decision 8 — the literal empty object Codex's loader needs to
+    // skip auto-registering hooks/hooks.json), and kitchen-sink sets no
+    // harnesses.overrides.codex.interface, so both checks legitimately fail.
+    // This is a real, permanent gap in the published third-party schema
+    // (it hasn't caught up with this internal/undocumented escape hatch),
+    // not a regression in generated output — see task-6-report.md.
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const result = validate(generatedFixture())
     expect(result.drift.clean).toBe(true)
-    expect(result.schemaErrors).toEqual([])
-    expect(result.ok).toBe(true)
+    expect(result.schemaErrors).toEqual([
+      ".codex-plugin/plugin.json: must have required property 'interface'",
+      '.codex-plugin/plugin.json: must NOT have additional properties',
+    ])
+    expect(result.ok).toBe(false)
     expect(errorSpy).not.toHaveBeenCalled()
     expect(warnSpy).not.toHaveBeenCalled()
     errorSpy.mockRestore()

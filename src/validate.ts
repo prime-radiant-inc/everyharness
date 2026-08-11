@@ -9,6 +9,7 @@ const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'schemas'
 // Which generated files are schema-checked, and by which vendored schema.
 const SCHEMA_TARGETS: Array<{ file: string; schema: string }> = [
   { file: '.claude-plugin/plugin.json', schema: 'claude-code-plugin-manifest.json' },
+  { file: '.codex-plugin/plugin.json', schema: 'codex-plugin-manifest.json' },
 ]
 
 export interface ValidateResult {
