@@ -61,14 +61,25 @@ function readMarkdownComponents(root: string, dir: string): Array<{
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 function readJsonIfPresent(root: string, rel: string): unknown {
   const abs = join(root, rel)
   if (!existsSync(abs)) return undefined
+  let parsed: unknown
   try {
-    return JSON.parse(readFileSync(abs, 'utf8'))
+    parsed = JSON.parse(readFileSync(abs, 'utf8'))
   } catch (e) {
     throw new ConfigError(`${rel} is not valid JSON: ${(e as Error).message}`)
   }
+  // Guards two downstream failure modes: `null` crashes mergedClaudeHooks, and an
+  // array silently drops the bootstrap entry when JSON.stringify-d back out.
+  if (!isPlainObject(parsed)) {
+    throw new ConfigError(`${rel} must contain a JSON object`)
+  }
+  return parsed
 }
 
 export function buildModel(root: string): PluginModel {

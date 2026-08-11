@@ -80,4 +80,27 @@ describe('buildModel', () => {
     writeFileSync(join(dir, '.mcp.json'), '{oops')
     expect(() => buildModel(dir)).toThrowError(/not valid JSON/)
   })
+
+  it('rejects hooks.json containing a JSON null', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-model-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: null-hooks\nversion: 1.0.0\ndescription: null hooks\n')
+    mkdirSync(join(dir, 'hooks'), { recursive: true })
+    writeFileSync(join(dir, 'hooks', 'hooks.json'), 'null')
+    expect(() => buildModel(dir)).toThrowError(/hooks\/hooks\.json must contain a JSON object/)
+  })
+
+  it('rejects hooks.json containing a JSON array', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-model-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: array-hooks\nversion: 1.0.0\ndescription: array hooks\n')
+    mkdirSync(join(dir, 'hooks'), { recursive: true })
+    writeFileSync(join(dir, 'hooks', 'hooks.json'), '[]')
+    expect(() => buildModel(dir)).toThrowError(/hooks\/hooks\.json must contain a JSON object/)
+  })
+
+  it('rejects an mcp file containing a JSON string', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-model-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: str-mcp\nversion: 1.0.0\ndescription: str mcp\n')
+    writeFileSync(join(dir, '.mcp.json'), '"str"')
+    expect(() => buildModel(dir)).toThrowError(/\.mcp\.json must contain a JSON object/)
+  })
 })
