@@ -87,7 +87,7 @@ describe('importPlugin', () => {
 
     const config = loadConfig(dir)
     expect(config.name).toBe('demo')
-    expect(config.bootstrap).toEqual({ kind: 'skill', skill: 'using-demo' })
+    expect(config.bootstrap).toEqual({ kind: 'skill', skill: 'using-demo', emitHooks: true })
   })
 
   it('uses bootstrap.generate: true when no using-<name> skill is present', () => {
@@ -99,7 +99,7 @@ describe('importPlugin', () => {
 
     expect(result.found).toEqual(['skills (1)'])
     const config = loadConfig(dir)
-    expect(config.bootstrap).toEqual({ kind: 'generate' })
+    expect(config.bootstrap).toEqual({ kind: 'generate', emitHooks: true })
   })
 
   it('refuses when everyharness.yaml already exists', () => {

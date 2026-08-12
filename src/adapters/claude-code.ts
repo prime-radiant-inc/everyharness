@@ -5,7 +5,7 @@ import type { EveryharnessConfig } from '../config.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json, githubOwnerRepo, marketplaceName } from './shared.js'
+import { baseManifestFields, json, githubOwnerRepo, marketplaceName, bootstrapEmitsHooks } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -49,7 +49,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (model.agents.length && config.components.agents !== 'agents') {
     manifest.agents = `./${config.components.agents}`
   }
-  if (config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate') {
+  if (bootstrapEmitsHooks(config.bootstrap)) {
     // Bootstrap hooks always live at a non-default path, and always exist
     // (even with no user hooks), so this takes priority over the general
     // non-default-path rule below.
@@ -105,7 +105,7 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
 function installDoc(model: PluginModel): string {
   const { config } = model
   const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
-  const bootstrapActive = config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate'
+  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap)
 
   const emitted = ['`.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`']
   if (bootstrapActive) {
@@ -162,6 +162,7 @@ export const claudeCode: HarnessAdapter = {
       { path: '.claude-plugin/plugin.json', content: json(pluginManifest(model)) },
       { path: '.claude-plugin/marketplace.json', content: json(marketplaceManifest(model)) },
     ]
+    const emitHooks = bootstrapEmitsHooks(config.bootstrap)
     if (config.bootstrap.kind === 'skill') {
       const skillName = config.bootstrap.skill
       const skill = model.skills.find((s) => s.name === skillName)
@@ -169,26 +170,34 @@ export const claudeCode: HarnessAdapter = {
         // buildModel validates the bootstrap skill exists before adapters run.
         throw new Error(`bootstrap skill "${skillName}" not found (buildModel should have validated this)`)
       }
-      files.push(
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
-      )
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+        )
+      }
     } else if (config.bootstrap.kind === 'generate') {
-      files.push(
-        { path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) },
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
-      )
+      // The generated bootstrap content file is emitted regardless of
+      // emitHooks: other adapters (gemini, opencode, pi, hermes) read it at
+      // runtime, independent of whether claude-code wires its own shell hook
+      // to it.
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+        )
+      }
     }
     return { files, warnings }
   },
