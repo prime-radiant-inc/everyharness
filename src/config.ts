@@ -21,6 +21,12 @@ export type BootstrapMode =
 // this same rule before writing it into everyharness.yaml.
 export const PLUGIN_NAME_RE = /^[a-z0-9][a-z0-9-]*$/
 
+// The anchored semver rule for the plugin `version` field. Exported so the
+// bump command validates a requested new version against the exact same rule
+// (and reuses the same human-facing wording) the schema enforces on load.
+export const VERSION_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
+export const VERSION_MESSAGE = 'semver, e.g. 1.2.3'
+
 const authorSchema = z.object({
   name: z.string(),
   email: z.string().optional(),
@@ -49,7 +55,7 @@ const componentPath = requiredComponentPath.optional()
 
 const rawSchema = z.object({
   name: z.string().regex(PLUGIN_NAME_RE, 'lowercase alphanumerics and hyphens'),
-  version: z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'semver, e.g. 1.2.3'),
+  version: z.string().regex(VERSION_RE, VERSION_MESSAGE),
   description: z.string(),
   author: authorSchema.optional(),
   license: z.string().optional(),

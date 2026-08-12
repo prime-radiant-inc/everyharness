@@ -23,6 +23,7 @@ npx everyharness generate   # emit per-harness files from everyharness.yaml
 npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 npx everyharness test       # container-backed offline install checks (needs docker; exit 2 = failed checks)
+npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --check / --audit)
 ```
 
 `everyharness test` runs two offline tiers inside the container: first it parses every generated harness manifest and confirms referenced paths exist, then it performs a **real install** of the plugin into each harness CLI (claude, codex, gemini, opencode, grok, droid, hermes, copilot, pi) and asserts the CLI actually enumerates the plugin's skills — the check that catches a manifest that parses but is wired to the wrong place. Harnesses with no offline enumeration path (kimi, cursor, devin) are reported as `skip`. It pulls ghcr.io/prime-radiant-inc/everyharness-container on first use (large image, ~15GB, linux/amd64) — prefetch with `docker pull` if you want progress control.
@@ -62,6 +63,55 @@ marketplace:
   entry's `keywords`).
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
+
+### `bump`
+
+`everyharness bump` sets the plugin version in one place and propagates it —
+the replacement for per-repo bump scripts like superpowers'
+`scripts/bump-version.sh`. Because `everyharness.yaml` is the version source of
+truth and `generate` rebuilds every harness manifest from it, you never list
+those generated files here: bump rewrites `everyharness.yaml`, then regenerates.
+The `bump` block only names the extra, *non-generated* files that also carry the
+version.
+
+```yaml
+bump:
+  files:
+    - { path: package.json, field: version }   # a version-bearing file everyharness does not generate
+  audit:
+    exclude:
+      - CHANGELOG.md                            # files the audit should ignore (glob, matched per path segment)
+      - "*.lock"
+```
+
+- **`files`** — extra files to rewrite, each a `{ path, field }` where `field`
+  is a dotted path (`version`, `plugins.0.version`) that must already exist as a
+  string in a `.json`, `.yaml`, or `.yml` file. everyharness.yaml is always
+  bumped and is not listed here.
+- **`audit.exclude`** — glob patterns the `--audit` scan skips. A pattern is
+  matched against the basename or any single path segment (grep
+  `--exclude`/`--exclude-dir` semantics).
+
+Three modes, exactly one per invocation:
+
+```bash
+everyharness bump 1.2.3   # rewrite everyharness.yaml + declared files, regenerate, then audit
+everyharness bump --check # print each version and detect drift
+everyharness bump --audit # scan the repo for stray occurrences of the current version
+```
+
+- **`bump <version>`** validates the version against the schema's semver rule,
+  rewrites everyharness.yaml (comments preserved) and every declared file,
+  regenerates all harness manifests, then runs the audit. Missing declared files
+  are reported as `SKIP (missing)`.
+- **`--check`** prints each declared file's version (or `MISSING`) plus
+  `everyharness.yaml`, and flags drift when versions disagree, a declared file
+  is missing, or a generated file no longer matches the manifest.
+- **`--audit`** greps every non-generated, non-declared, non-excluded text file
+  for the current version string and reports occurrences you may have missed.
+
+Exit codes: `0` clean, `1` config error, `3` drift (from `--check`). `--audit`
+is advisory and always exits `0`.
 
 ## License
 
