@@ -80,7 +80,20 @@ const rawSchema = z.object({
     })
     .optional(),
   marketplace: z
-    .object({ category: z.string().optional(), tags: z.array(z.string()).optional() })
+    .object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      source: z
+        .union([
+          z.literal('local'),
+          z.literal('repository'),
+          z.string().regex(/^https?:\/\//, 'must be "local", "repository", or an http(s) URL'),
+        ])
+        .optional(),
+      category: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      strict: z.boolean().optional(),
+    })
     .optional(),
 })
 
@@ -96,7 +109,14 @@ export interface EveryharnessConfig {
   bootstrap: BootstrapMode
   components: { skills: string; commands: string; agents: string; hooks: string; mcp: string }
   harnesses: { exclude: string[]; overrides: Record<string, Record<string, unknown>> }
-  marketplace?: { category?: string; tags?: string[] }
+  marketplace?: {
+    name?: string
+    description?: string
+    source?: 'local' | 'repository' | string
+    category?: string
+    tags?: string[]
+    strict?: boolean
+  }
 }
 
 function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): BootstrapMode {
@@ -112,6 +132,14 @@ function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): Bootstra
   if (raw.skill !== undefined) return { kind: 'skill', skill: raw.skill }
   if (raw.generate) return { kind: 'generate' }
   return { kind: 'none' }
+}
+
+function checkMarketplace(marketplace: z.infer<typeof rawSchema>['marketplace'], repository: string | undefined): void {
+  if (marketplace?.source === 'repository' && !repository) {
+    throw new ConfigError(
+      'marketplace.source: repository requires a top-level repository field',
+    )
+  }
 }
 
 export function loadConfig(root: string): EveryharnessConfig {
@@ -133,6 +161,7 @@ export function loadConfig(root: string): EveryharnessConfig {
     )
   }
   const raw = parsed.data
+  checkMarketplace(raw.marketplace, raw.repository)
   return {
     name: raw.name,
     version: raw.version,

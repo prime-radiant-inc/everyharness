@@ -204,4 +204,58 @@ describe('loadConfig', () => {
       expect(err.details.join('\n')).toContain('path segments may not be . or ..')
     }
   })
+
+  it('accepts the widened marketplace key', () => {
+    const cfg = loadConfig(repoWith([
+      'name: pub-plugin',
+      'version: 1.0.0',
+      'description: A publishable plugin',
+      'repository: https://github.com/o/r',
+      'marketplace:',
+      '  name: pub',
+      '  description: D',
+      '  source: repository',
+      '  strict: false',
+      '  category: c',
+      '  tags: [t]',
+    ].join('\n')))
+    expect(cfg.marketplace).toEqual({
+      name: 'pub',
+      description: 'D',
+      source: 'repository',
+      strict: false,
+      category: 'c',
+      tags: ['t'],
+    })
+  })
+
+  it('accepts an explicit http(s) URL as marketplace.source', () => {
+    expect(() => loadConfig(repoWith([
+      'name: pub-plugin',
+      'version: 1.0.0',
+      'description: A publishable plugin',
+      'marketplace:',
+      '  source: https://github.com/o/r.git',
+    ].join('\n')))).not.toThrow()
+  })
+
+  it('rejects marketplace.source: repository without a top-level repository field', () => {
+    expect(() => loadConfig(repoWith([
+      'name: pub-plugin',
+      'version: 1.0.0',
+      'description: A publishable plugin',
+      'marketplace:',
+      '  source: repository',
+    ].join('\n')))).toThrow(/marketplace\.source.*repository/)
+  })
+
+  it('rejects a junk marketplace.source value', () => {
+    expect(() => loadConfig(repoWith([
+      'name: pub-plugin',
+      'version: 1.0.0',
+      'description: A publishable plugin',
+      'marketplace:',
+      '  source: ftp://x',
+    ].join('\n')))).toThrow()
+  })
 })
