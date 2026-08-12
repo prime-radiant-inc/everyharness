@@ -166,6 +166,27 @@ describe('loadConfig', () => {
       ].join('\n')))).toThrow(/claudecode.*claude-code.*cursor.*codex/s)
     })
 
+    it('rejects an unknown harness name in exclude', () => {
+      expect(() => loadConfig(repoWith([
+        'name: x',
+        'version: 1.0.0',
+        'description: x',
+        'harnesses:',
+        '  exclude: [devine]',
+      ].join('\n')))).toThrow(/harnesses\.exclude.*devine.*claude-code/s)
+    })
+
+    it('rejects a stray key inside the bootstrap skill object', () => {
+      expect(() => loadConfig(repoWith([
+        'name: x',
+        'version: 1.0.0',
+        'description: x',
+        'bootstrap:',
+        '  skill: using-x',
+        '  bogus: 1',
+      ].join('\n')))).toThrow(ConfigError)
+    })
+
     it('rejects hooks: own on a non-hook-emitting harness (gemini)', () => {
       expect(() => loadConfig(repoWith([
         'name: x',

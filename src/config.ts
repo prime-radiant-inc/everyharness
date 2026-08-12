@@ -94,7 +94,7 @@ const componentPath = requiredComponentPath.optional()
 // rejected with pointed migration errors in rejectLegacySyntax before the
 // schema ever runs.
 const bootstrapSchema = z
-  .union([z.literal('none'), z.literal('generate'), z.object({ skill: z.string() })])
+  .union([z.literal('none'), z.literal('generate'), z.object({ skill: z.string() }).strict()])
   .optional()
 
 const releaseSchema = z
@@ -229,6 +229,16 @@ function resolveHarnessSettings(raw: Record<string, unknown> | undefined): {
   const exclude = (raw?.exclude as string[] | undefined) ?? []
   const settings: Record<string, HarnessSettings> = {}
   if (!raw) return { exclude, settings }
+
+  // The same typo-catching rationale as the per-harness blocks: an excluded
+  // name that matches no adapter would silently exclude nothing.
+  for (const name of exclude) {
+    if (!(ADAPTER_NAMES as readonly string[]).includes(name)) {
+      throw new ConfigError(`harnesses.exclude: unknown harness name "${name}"`, [
+        `valid names: ${ADAPTER_NAMES.join(', ')}`,
+      ])
+    }
+  }
 
   for (const [key, value] of Object.entries(raw)) {
     if (key === 'exclude') continue

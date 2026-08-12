@@ -256,9 +256,7 @@ export function importPlugin(root: string): ImportResult {
   // skill-bootstrap mode; otherwise fall back to generate mode.
   const bootstrapSkillName = `using-${name}`
   // v2 tagged bootstrap: the { skill } object form, or the 'generate' string
-  // literal. (Full import emission redesign — warning text, extras placement —
-  // is Task 2; this is the minimal v2 emission so the written yaml round-trips
-  // through the v2 loadConfig below.)
+  // literal.
   output.bootstrap = skillDirs.includes(bootstrapSkillName) ? { skill: bootstrapSkillName } : 'generate'
 
   if (Object.keys(components).length > 0) output.components = components
