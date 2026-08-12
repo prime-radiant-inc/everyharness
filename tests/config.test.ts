@@ -48,7 +48,7 @@ describe('loadConfig', () => {
       '  category: Developer Tools',
       '  tags: [demo]',
     ].join('\n')))
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: true })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: {} })
     expect(cfg.harnesses.exclude).toEqual(['devin'])
     expect(cfg.harnesses.overrides['claude-code']).toEqual({
       homepage: 'https://example.com/kitchen-sink',
@@ -72,32 +72,51 @@ describe('loadConfig', () => {
     ))).toThrowError(/exactly one/i)
   })
 
-  it('defaults bootstrap.emitHooks to true for skill mode', () => {
+  it('normalizes an absent bootstrap.emitHooks to {} for skill mode (missing harness key still means true downstream)', () => {
     const cfg = loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n'
     ))
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: true })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: {} })
   })
 
-  it('respects an explicit bootstrap.emitHooks: false for skill mode', () => {
+  it('normalizes an explicit boolean bootstrap.emitHooks: false to both hook-emitting harnesses for skill mode', () => {
     const cfg = loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n  emitHooks: false\n'
     ))
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: false })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: { 'claude-code': false, cursor: false } })
   })
 
-  it('defaults bootstrap.emitHooks to true for generate mode', () => {
+  it('normalizes an absent bootstrap.emitHooks to {} for generate mode', () => {
     const cfg = loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  generate: true\n'
     ))
-    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: true })
+    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: {} })
   })
 
-  it('respects an explicit bootstrap.emitHooks: false for generate mode', () => {
+  it('normalizes an explicit boolean bootstrap.emitHooks: false to both hook-emitting harnesses for generate mode', () => {
     const cfg = loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  generate: true\n  emitHooks: false\n'
     ))
-    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: false })
+    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: { 'claude-code': false, cursor: false } })
+  })
+
+  it('keeps a per-harness bootstrap.emitHooks map as-is, leaving unnamed harnesses out (default true applies downstream)', () => {
+    const cfg = loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n  emitHooks:\n    claude-code: false\n'
+    ))
+    expect(cfg.bootstrap.emitHooks).toEqual({ 'claude-code': false })
+  })
+
+  it('rejects an unknown harness key in a bootstrap.emitHooks map, naming the key and the valid set', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n  emitHooks:\n    claudecode: false\n'
+    ))).toThrow(/claudecode.*claude-code.*cursor/s)
+  })
+
+  it('rejects a bootstrap.emitHooks map set alongside none', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  none: true\n  emitHooks:\n    cursor: false\n'
+    ))).toThrow(/emitHooks/)
   })
 
   it('rejects bootstrap.emitHooks set alongside none', () => {
@@ -178,7 +197,7 @@ describe('loadConfig', () => {
   it('loads the kitchen-sink fixture config', () => {
     const cfg = loadConfig('fixtures/kitchen-sink')
     expect(cfg.name).toBe('kitchen-sink')
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: true })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: {} })
   })
 
   it('normalizes trailing slashes on component paths', () => {

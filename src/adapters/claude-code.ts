@@ -51,7 +51,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (model.agents.length && config.components.agents !== 'agents') {
     manifest.agents = `./${config.components.agents}`
   }
-  if (bootstrapEmitsHooks(config.bootstrap)) {
+  if (bootstrapEmitsHooks(config.bootstrap, claudeCode.name)) {
     // Bootstrap hooks always live at a non-default path, and always exist
     // (even with no user hooks), so this takes priority over the general
     // non-default-path rule below.
@@ -110,7 +110,7 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
 function installDoc(model: PluginModel): string {
   const { config } = model
   const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
-  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap)
+  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap, claudeCode.name)
 
   const emitted = ['`.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`']
   if (bootstrapActive) {
@@ -167,7 +167,7 @@ export const claudeCode: HarnessAdapter = {
       { path: '.claude-plugin/plugin.json', content: json(pluginManifest(model)) },
       { path: '.claude-plugin/marketplace.json', content: json(marketplaceManifest(model)) },
     ]
-    const emitHooks = bootstrapEmitsHooks(config.bootstrap)
+    const emitHooks = bootstrapEmitsHooks(config.bootstrap, claudeCode.name)
     if (config.bootstrap.kind === 'skill') {
       const skillName = config.bootstrap.skill
       const skill = model.skills.find((s) => s.name === skillName)

@@ -28,7 +28,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
     ...rest,
   }
   manifest.skills = `./${config.components.skills}/`
-  if (bootstrapEmitsHooks(config.bootstrap)) {
+  if (bootstrapEmitsHooks(config.bootstrap, cursor.name)) {
     manifest.hooks = `./${BOOTSTRAP_HOOKS_JSON_PATH}`
   }
   const override = config.harnesses.overrides.cursor
@@ -48,7 +48,7 @@ function hooksManifest(): Record<string, unknown> {
 // marketplace search once listed there — no fabricated marketplace listing.
 function installDoc(model: PluginModel): string {
   const { config } = model
-  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap)
+  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap, cursor.name)
 
   const emitted = ['`.cursor-plugin/plugin.json`']
   if (bootstrapActive) {
@@ -102,7 +102,7 @@ export const cursor: HarnessAdapter = {
     const warnings: string[] = []
     const files: GeneratedFile[] = [{ path: '.cursor-plugin/plugin.json', content: json(pluginManifest(model)) }]
 
-    const emitHooks = bootstrapEmitsHooks(config.bootstrap)
+    const emitHooks = bootstrapEmitsHooks(config.bootstrap, cursor.name)
     if (config.bootstrap.kind === 'skill') {
       const skillName = config.bootstrap.skill
       const skill = model.skills.find((s) => s.name === skillName)

@@ -32,6 +32,46 @@ npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --ch
 
 ## Configuration
 
+### `bootstrap`
+
+The optional `bootstrap` block wires a plugin's discovery skill (or a
+generated equivalent) into every harness. Exactly one of `skill` / `generate`
+/ `none` must be set.
+
+```yaml
+bootstrap:
+  skill: using-my-plugin   # exactly one of skill / generate / none
+  emitHooks: false         # optional; default true. boolean or per-harness map
+```
+
+- **`skill`** — the name of a skill (under `components.skills`) invoked as
+  the bootstrap; generation fails if the skill doesn't exist.
+- **`generate`** — `true` to have everyharness synthesize a bootstrap file
+  from the plugin's skill list instead of pointing at a hand-written skill.
+- **`none`** — `true` to skip bootstrap wiring entirely. `emitHooks` is not
+  valid alongside `none`.
+- **`emitHooks`** — whether claude-code and cursor (the harnesses with a
+  shell-hook tier) emit their own generated SessionStart hook and merged
+  `hooks.json` / `hooks-cursor.json` pointer. Set it when a plugin
+  hand-crafts its own hooks for one or more harnesses and wants
+  everyharness to leave that harness's hooks wiring alone. Two forms:
+  - a boolean applies to every hook-emitting harness (`claude-code`,
+    `cursor`) — `emitHooks: false` keeps both harnesses on their
+    hand-written hooks.
+  - a per-harness map applies only to the named harnesses; any
+    hook-emitting harness left out of the map keeps the default:
+    ```yaml
+    bootstrap:
+      skill: using-my-plugin
+      emitHooks:
+        claude-code: false   # claude-code keeps its own hand-written hooks
+                              # cursor is untouched — it still gets the generated hook
+    ```
+    An unrecognized harness key is a config error naming the key and the
+    valid set.
+
+  Default: `true` for every hook-emitting harness.
+
 ### `marketplace`
 
 The optional `marketplace` block shapes the Claude Code marketplace descriptor

@@ -178,6 +178,50 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
   })
 })
 
+describe('bootstrap.emitHooks as a per-harness map', () => {
+  it('suppresses claude-code hooks while cursor keeps its default-true hooks, from one shared config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-mixed-emithooks-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: mixed-emithooks',
+        'version: 1.0.0',
+        'description: per-harness emitHooks fixture',
+        'bootstrap:',
+        '  skill: using-demo',
+        '  emitHooks:',
+        '    claude-code: false',
+      ].join('\n'),
+    )
+    const mixedModel = buildModel(dir)
+
+    const claudeResult = claudeCode.emit(mixedModel)
+    expect(claudeResult.files.map((f) => f.path).filter((p) => p.startsWith('hooks/'))).toEqual([])
+    const claudeManifest = JSON.parse(
+      claudeResult.files.find((f) => f.path === '.claude-plugin/plugin.json')!.content,
+    )
+    expect(claudeManifest).not.toHaveProperty('hooks')
+
+    const cursorResult = cursor.emit(mixedModel)
+    expect(cursorResult.files.map((f) => f.path)).toEqual(
+      expect.arrayContaining([
+        'hooks/everyharness/session-start',
+        'hooks/everyharness/run-hook.cmd',
+        'hooks/everyharness/hooks-cursor.json',
+      ]),
+    )
+    const cursorManifest = JSON.parse(
+      cursorResult.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content,
+    )
+    expect(cursorManifest.hooks).toBe('./hooks/everyharness/hooks-cursor.json')
+  })
+})
+
 describe('cursor adapter with bootstrap.generate', () => {
   it('emits a generated bootstrap.md wired into the session-start hook', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-generate-'))
