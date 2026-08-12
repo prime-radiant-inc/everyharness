@@ -179,6 +179,61 @@ describe('claude-code adapter installDoc', () => {
   })
 })
 
+describe('claude-code adapter marketplace field handling', () => {
+  it('emits a publishable descriptor: name, description, repository source, strict, and the matching install line', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-marketplace-pub-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: proving-it-works',
+        'version: 1.0.0',
+        'description: proves marketplace fields work',
+        'repository: https://github.com/o/proving-it-works.git',
+        'marketplace:',
+        '  name: proving-it-works',
+        '  description: Real desc',
+        '  source: repository',
+        '  strict: false',
+      ].join('\n'),
+    )
+    const pubModel = buildModel(dir)
+    const marketplace = JSON.parse(
+      claudeCode.emit(pubModel).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.name).toBe('proving-it-works')
+    expect(marketplace.description).toBe('Real desc')
+    expect(marketplace.plugins[0].source).toEqual({ source: 'url', url: 'https://github.com/o/proving-it-works.git' })
+    expect(marketplace.plugins[0].strict).toBe(false)
+    expect(claudeCode.installDoc!(pubModel)).toContain('/plugin install proving-it-works@proving-it-works')
+  })
+
+  it('maps an explicit http(s) URL marketplace.source to the same url source shape', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-marketplace-url-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: url-source',
+        'version: 1.0.0',
+        'description: explicit url source fixture',
+        'marketplace:',
+        '  source: https://example.com/repo.git',
+      ].join('\n'),
+    )
+    const urlModel = buildModel(dir)
+    const marketplace = JSON.parse(
+      claudeCode.emit(urlModel).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.plugins[0].source).toEqual({ source: 'url', url: 'https://example.com/repo.git' })
+  })
+
+  it('omits the strict key by default (no marketplace.strict set)', () => {
+    const marketplace = JSON.parse(
+      claudeCode.emit(model).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.plugins[0]).not.toHaveProperty('strict')
+  })
+})
+
 describe('claude-code adapter with a non-default skills path', () => {
   it('emits a skills key in plugin.json pointing at the custom directory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-'))
