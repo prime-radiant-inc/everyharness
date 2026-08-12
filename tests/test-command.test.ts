@@ -215,6 +215,19 @@ describe('checks/run-checks.sh', () => {
     expect(result.status).toBe(0)
   })
 
+  it('oneline() truncates output to 300 characters', () => {
+    // Sources the real oneline() out of the script (not a copy) and feeds it
+    // output longer than the cap.
+    const longString = 'x'.repeat(1000)
+    const result = spawnSync(
+      'bash',
+      ['-c', `source <(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}"); output=$(oneline "${longString}"); echo "\${#output}"`],
+      { encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe('300')
+  })
+
   // Runs the script directly (no container) against a generated kitchen-sink
   // copy, exercising the manifest-harness jq logic (and every other shallow
   // check that only needs bash/jq/node/python3) end to end. PATH is narrowed
