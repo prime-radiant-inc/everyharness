@@ -40,7 +40,7 @@ function printAudit(result: AuditResult): void {
     console.log(`  ${finding.path}:${finding.line}: ${finding.text}`)
   }
   console.log(
-    '\nReview the above — if they should be bumped, add them to bump.files; if they should be skipped, add them to bump.audit.exclude.',
+    '\nReview the above — if they should be bumped, add them to release.files; if they should be skipped, add them to release.audit.exclude.',
   )
 }
 
@@ -117,7 +117,7 @@ program
   .action((opts: { dir: string }) => {
     const result = validate(opts.dir)
     for (const path of result.drift.modified) {
-      console.error(`drift: ${path} was modified after generation (regenerate, or move the change into everyharness.yaml overrides)`)
+      console.error(`drift: ${path} was modified after generation (regenerate, or move the change into harnesses.<name>.manifest)`)
     }
     for (const path of result.drift.missing) {
       console.error(`drift: ${path} is recorded in the manifest but missing from disk (run \`everyharness generate\` to restore it)`)
@@ -149,7 +149,7 @@ program
 
 program
   .command('bump')
-  .argument('[version]', 'new semver version to set across everyharness.yaml and declared bump.files')
+  .argument('[version]', 'new semver version to set across everyharness.yaml and declared release.files')
   .description(
     'Bump the plugin version and regenerate. Replaces per-repo bump scripts. ' +
       '--check reports drift (exit 3), --audit scans for undeclared version strings (exit 0). ' +
