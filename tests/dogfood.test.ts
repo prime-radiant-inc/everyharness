@@ -84,7 +84,7 @@ interface ExpectedDifference {
 //
 // Empty as of this branch. All three differences ever tolerated here --
 // claude-code's and cursor's forced hooks pointer, and marketplace.json's
-// hardcoded description -- are now closed: `bootstrap.emitHooks: false`
+// hardcoded description -- are now closed: `harnesses.<name>.hooks: own`
 // (see src/adapters/shared.ts's bootstrapEmitsHooks) lets superpowers keep
 // its own hand-wired hooks instead of the generated pointer, and
 // `marketplace.description` (issue #7) gives marketplaceManifest() an

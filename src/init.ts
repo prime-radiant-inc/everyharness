@@ -49,9 +49,7 @@ export function init(root: string, opts: { force?: boolean } = {}): InitResult {
     name: pluginName,
     version: '0.1.0',
     description: 'TODO describe this plugin',
-    // v2 tagged bootstrap: the 'generate' string literal. (The richer init
-    // scaffold redesign is Task 2; this is the minimal v2 emission needed so
-    // the scaffold loads under the v2 schema.)
+    // v2 tagged bootstrap: the 'generate' string literal.
     bootstrap: 'generate',
   }
 

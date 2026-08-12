@@ -40,9 +40,17 @@ export const ADAPTER_NAMES = [
 ] as const
 
 export type BootstrapMode =
-  | { kind: 'skill'; skill: string; emitHooks: Record<string, boolean> }
-  | { kind: 'generate'; emitHooks: Record<string, boolean> }
+  | { kind: 'skill'; skill: string }
+  | { kind: 'generate' }
   | { kind: 'none' }
+
+// A resolved harnesses.<name> block: the per-harness hook tier ('generated'
+// default | 'own') and an optional manifest patch (deep-merged into the
+// adapter's generated manifest; a null value is the delete-sentinel).
+export interface HarnessSettings {
+  hooks: 'generated' | 'own'
+  manifest?: Record<string, unknown>
+}
 
 // Shared with import.ts, which validates a Claude plugin.json's name against
 // this same rule before writing it into everyharness.yaml.
@@ -165,7 +173,7 @@ export interface EveryharnessConfig {
   keywords?: string[]
   bootstrap: BootstrapMode
   components: { skills: string; commands: string; agents: string; hooks: string; mcp: string }
-  harnesses: { exclude: string[]; overrides: Record<string, Record<string, unknown>> }
+  harnesses: { exclude: string[]; settings: Record<string, HarnessSettings> }
   marketplace?: {
     name?: string
     description?: string
@@ -178,12 +186,6 @@ export interface EveryharnessConfig {
     files?: { path: string; field: string }[]
     audit?: { exclude?: string[] }
   }
-}
-
-// A single resolved harnesses.<name> block from the v2 dialect.
-interface HarnessEntry {
-  hooks?: 'generated' | 'own'
-  manifest?: Record<string, unknown>
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -218,14 +220,14 @@ function rejectLegacySyntax(doc: unknown): void {
 
 // Validates every harnesses.<name> block from the v2 dialect: unknown harness
 // names (typo-catching against ADAPTER_NAMES), the hooks enum, that manifest is
-// a mapping, and that no stray keys sneak in. Returns the raw per-harness
-// entries; resolveHarnessModel folds them into the internal model.
+// a mapping, and that no stray keys sneak in. Returns the resolved per-harness
+// settings that consumers read directly (hooks defaults to 'generated').
 function resolveHarnessSettings(raw: Record<string, unknown> | undefined): {
   exclude: string[]
-  settings: Record<string, HarnessEntry>
+  settings: Record<string, HarnessSettings>
 } {
   const exclude = (raw?.exclude as string[] | undefined) ?? []
-  const settings: Record<string, HarnessEntry> = {}
+  const settings: Record<string, HarnessSettings> = {}
   if (!raw) return { exclude, settings }
 
   for (const [key, value] of Object.entries(raw)) {
@@ -236,12 +238,12 @@ function resolveHarnessSettings(raw: Record<string, unknown> | undefined): {
     if (!isPlainObject(value)) {
       throw new ConfigError(`harnesses.${key}: must be a mapping of hooks and/or manifest`)
     }
-    const entry: HarnessEntry = {}
     for (const settingKey of Object.keys(value)) {
       if (settingKey !== 'hooks' && settingKey !== 'manifest') {
         throw new ConfigError(`harnesses.${key}.${settingKey}: unknown key (expected hooks or manifest)`)
       }
     }
+    const entry: HarnessSettings = { hooks: 'generated' }
     if ('hooks' in value) {
       const hooks = value.hooks
       if (hooks !== 'generated' && hooks !== 'own') {
@@ -261,49 +263,32 @@ function resolveHarnessSettings(raw: Record<string, unknown> | undefined): {
   return { exclude, settings }
 }
 
-// TWO-PHASE NORMALIZATION (config v2, Task 1 -> Task 2 handoff): the v2 YAML
-// dialect expresses per-harness intent as harnesses.<name>.hooks and
-// harnesses.<name>.manifest. Task 1 rebuilds ONLY the dialect + validation;
-// the resolved internal model is still the v1 shape all 8 adapters read today
-// (BootstrapMode.emitHooks + harnesses.overrides), so this folds the v2 syntax
-// back into it:
-//   harnesses.<name>.hooks: own       -> emitHooks[name] = false
-//   harnesses.<name>.manifest: {...}  -> overrides[name] = {...}
-// A harness left at the default (`hooks: generated` / absent) is simply omitted
-// from emitHooks, which bootstrapEmitsHooks reads as true. Task 2 renames the
-// internal model to harnesses.settings/HarnessSettings and updates every
-// adapter; DELETE this folding then.
-function resolveBootstrap(
-  raw: z.infer<typeof rawSchema>['bootstrap'],
-  settings: Record<string, HarnessEntry>,
-): BootstrapMode {
-  const emitHooks: Record<string, boolean> = {}
-  const hooksOwn: string[] = []
+// Resolves the tagged bootstrap value into its internal model: the string
+// literals map to 'none'/'generate', the { skill } object to the skill mode,
+// and an absent value to 'none'.
+function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): BootstrapMode {
+  if (raw === undefined || raw === 'none') return { kind: 'none' }
+  if (raw === 'generate') return { kind: 'generate' }
+  return { kind: 'skill', skill: raw.skill }
+}
+
+// A `hooks: own` opt-out is only meaningful on a hook-emitting harness with an
+// active bootstrap; anywhere else there are no generated hooks to suppress, so
+// it's a pointed ConfigError rather than a silent no-op.
+function validateHarnessHooks(settings: Record<string, HarnessSettings>, bootstrap: BootstrapMode): void {
   for (const [name, entry] of Object.entries(settings)) {
-    if (entry.hooks === 'own') {
-      hooksOwn.push(name)
-      emitHooks[name] = false
-    }
-  }
-
-  const kind = raw === undefined || raw === 'none' ? 'none' : raw === 'generate' ? 'generate' : 'skill'
-
-  for (const name of hooksOwn) {
+    if (entry.hooks !== 'own') continue
     if (!(HOOK_EMITTING_HARNESSES as readonly string[]).includes(name)) {
       throw new ConfigError(
         `harnesses.${name}.hooks: own is only valid on hook-emitting harnesses (${HOOK_EMITTING_HARNESSES.join(', ')})`,
       )
     }
-    if (kind === 'none') {
+    if (bootstrap.kind === 'none') {
       throw new ConfigError(
         `harnesses.${name}.hooks: own requires an active bootstrap (bootstrap: generate or bootstrap: { skill: <name> }); there are no generated hooks to suppress`,
       )
     }
   }
-
-  if (kind === 'none') return { kind: 'none' }
-  if (kind === 'generate') return { kind: 'generate', emitHooks }
-  return { kind: 'skill', skill: (raw as { skill: string }).skill, emitHooks }
 }
 
 function checkMarketplace(marketplace: z.infer<typeof rawSchema>['marketplace'], repository: string | undefined): void {
@@ -337,10 +322,8 @@ export function loadConfig(root: string): EveryharnessConfig {
   checkMarketplace(raw.marketplace, raw.repository)
 
   const { exclude, settings } = resolveHarnessSettings(raw.harnesses)
-  const overrides: Record<string, Record<string, unknown>> = {}
-  for (const [name, entry] of Object.entries(settings)) {
-    if (entry.manifest) overrides[name] = entry.manifest
-  }
+  const bootstrap = resolveBootstrap(raw.bootstrap)
+  validateHarnessHooks(settings, bootstrap)
 
   return {
     name: raw.name,
@@ -351,7 +334,7 @@ export function loadConfig(root: string): EveryharnessConfig {
     repository: raw.repository,
     homepage: raw.homepage,
     keywords: raw.keywords,
-    bootstrap: resolveBootstrap(raw.bootstrap, settings),
+    bootstrap,
     components: {
       skills: raw.components?.skills ?? 'skills',
       commands: raw.components?.commands ?? 'commands',
@@ -359,7 +342,7 @@ export function loadConfig(root: string): EveryharnessConfig {
       hooks: raw.components?.hooks ?? 'hooks/hooks.json',
       mcp: raw.components?.mcp ?? '.mcp.json',
     },
-    harnesses: { exclude, overrides },
+    harnesses: { exclude, settings },
     marketplace: raw.marketplace,
     release: raw.release,
   }

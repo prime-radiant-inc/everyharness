@@ -25,7 +25,7 @@ describe('loadConfig', () => {
       hooks: 'hooks/hooks.json',
       mcp: '.mcp.json',
     })
-    expect(cfg.harnesses).toEqual({ exclude: [], overrides: {} })
+    expect(cfg.harnesses).toEqual({ exclude: [], settings: {} })
   })
 
   it('loads a full config in v2 syntax', () => {
@@ -45,9 +45,9 @@ describe('loadConfig', () => {
       '    manifest:',
       '      homepage: https://example.com/kitchen-sink',
     ].join('\n')))
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: {} })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
     expect(cfg.harnesses.exclude).toEqual(['devin'])
-    expect(cfg.harnesses.overrides['claude-code']).toEqual({
+    expect(cfg.harnesses.settings['claude-code']?.manifest).toEqual({
       homepage: 'https://example.com/kitchen-sink',
     })
     expect(cfg.author?.name).toBe('Prime Radiant')
@@ -75,14 +75,14 @@ describe('loadConfig', () => {
       const cfg = loadConfig(repoWith(
         'name: x\nversion: 1.0.0\ndescription: x\nbootstrap: generate\n'
       ))
-      expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: {} })
+      expect(cfg.bootstrap).toEqual({ kind: 'generate' })
     })
 
     it('resolves the { skill } object form to kind skill', () => {
       const cfg = loadConfig(repoWith(
         'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: using-x\n'
       ))
-      expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-x', emitHooks: {} })
+      expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-x' })
     })
 
     it('resolves an absent bootstrap key to kind none', () => {
@@ -100,7 +100,7 @@ describe('loadConfig', () => {
   })
 
   describe('per-harness settings', () => {
-    it('folds harnesses.<name>.hooks: own into emitHooks[name] = false', () => {
+    it('resolves harnesses.<name>.hooks: own into the settings record', () => {
       const cfg = loadConfig(repoWith([
         'name: x',
         'version: 1.0.0',
@@ -111,10 +111,11 @@ describe('loadConfig', () => {
         '  claude-code:',
         '    hooks: own',
       ].join('\n')))
-      expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-x', emitHooks: { 'claude-code': false } })
+      expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-x' })
+      expect(cfg.harnesses.settings['claude-code']).toEqual({ hooks: 'own' })
     })
 
-    it('leaves a harness at hooks: generated out of emitHooks (default-true downstream)', () => {
+    it('defaults a harness with no hooks key to hooks: generated', () => {
       const cfg = loadConfig(repoWith([
         'name: x',
         'version: 1.0.0',
@@ -124,10 +125,11 @@ describe('loadConfig', () => {
         '  cursor:',
         '    hooks: generated',
       ].join('\n')))
-      expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: {} })
+      expect(cfg.bootstrap).toEqual({ kind: 'generate' })
+      expect(cfg.harnesses.settings.cursor).toEqual({ hooks: 'generated' })
     })
 
-    it('folds harnesses.<name>.manifest into the overrides record', () => {
+    it('resolves harnesses.<name>.manifest into the settings record', () => {
       const cfg = loadConfig(repoWith([
         'name: x',
         'version: 1.0.0',
@@ -137,7 +139,7 @@ describe('loadConfig', () => {
         '    manifest:',
         '      description: codex-specific',
       ].join('\n')))
-      expect(cfg.harnesses.overrides.codex).toEqual({ description: 'codex-specific' })
+      expect(cfg.harnesses.settings.codex?.manifest).toEqual({ description: 'codex-specific' })
     })
 
     it('carries a null delete-sentinel inside a manifest patch', () => {
@@ -150,7 +152,7 @@ describe('loadConfig', () => {
         '    manifest:',
         '      repository: null',
       ].join('\n')))
-      expect(cfg.harnesses.overrides.kimi).toEqual({ repository: null })
+      expect(cfg.harnesses.settings.kimi?.manifest).toEqual({ repository: null })
     })
 
     it('rejects an unknown harness name, naming the key and the valid set', () => {
@@ -356,7 +358,7 @@ describe('loadConfig', () => {
   it('loads the kitchen-sink fixture config', () => {
     const cfg = loadConfig('fixtures/kitchen-sink')
     expect(cfg.name).toBe('kitchen-sink')
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: {} })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
   })
 
   it('normalizes trailing slashes on component paths', () => {

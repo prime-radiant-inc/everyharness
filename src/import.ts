@@ -22,7 +22,7 @@ const DEFAULT_PATHS = {
 // The plugin.json keys this importer understands: the eight mapped
 // top-level fields plus the five component-path override keys (mcpServers
 // is Claude's name for the mcp override). Anything else is unknown and
-// carried into harnesses.overrides.claude-code verbatim.
+// carried into harnesses.claude-code.manifest verbatim.
 const MAPPED_PLUGIN_JSON_KEYS = new Set([
   'name',
   'version',
@@ -270,12 +270,10 @@ export function importPlugin(root: string): ImportResult {
   for (const key of Object.keys(pluginJson)) {
     if (MAPPED_PLUGIN_JSON_KEYS.has(key)) continue
     overrideExtras[key] = pluginJson[key]
-    warnings.push(`carried unknown plugin.json key "${key}" into harnesses.overrides.claude-code`)
+    warnings.push(`carried unknown plugin.json key "${key}" into harnesses.claude-code.manifest`)
   }
   if (Object.keys(overrideExtras).length > 0) {
-    // v2: carried extras become a manifest patch under harnesses.claude-code.
-    // (Task 2 owns the full import redesign, including the warning wording
-    // above, which still says "overrides".)
+    // Carried extras become a manifest patch under harnesses.claude-code.
     output.harnesses = { 'claude-code': { manifest: overrideExtras } }
   }
 

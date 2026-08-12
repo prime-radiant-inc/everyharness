@@ -68,7 +68,7 @@ describe('importPlugin', () => {
     const result = importPlugin(dir)
 
     expect(result.found).toEqual(['skills (2)', 'commands (1)', 'agents (1)', 'hooks', 'mcp'])
-    expect(result.warnings).toEqual(['carried unknown plugin.json key "xPortal" into harnesses.overrides.claude-code'])
+    expect(result.warnings).toEqual(['carried unknown plugin.json key "xPortal" into harnesses.claude-code.manifest'])
     expect(result.configPath).toBe(join(dir, 'everyharness.yaml'))
 
     const expected = stringify({
@@ -87,10 +87,10 @@ describe('importPlugin', () => {
 
     const config = loadConfig(dir)
     expect(config.name).toBe('demo')
-    expect(config.bootstrap).toEqual({ kind: 'skill', skill: 'using-demo', emitHooks: {} })
+    expect(config.bootstrap).toEqual({ kind: 'skill', skill: 'using-demo' })
   })
 
-  it('uses bootstrap.generate: true when no using-<name> skill is present', () => {
+  it('falls back to bootstrap: generate when no using-<name> skill is present', () => {
     const dir = tmpDir('eh-import-nobootstrap-')
     writePluginJson(dir, { name: 'no-match', version: '1.0.0', description: 'No matching skill' })
     writeSkill(dir, 'skills', 'other')
@@ -99,7 +99,7 @@ describe('importPlugin', () => {
 
     expect(result.found).toEqual(['skills (1)'])
     const config = loadConfig(dir)
-    expect(config.bootstrap).toEqual({ kind: 'generate', emitHooks: {} })
+    expect(config.bootstrap).toEqual({ kind: 'generate' })
   })
 
   it('refuses when everyharness.yaml already exists', () => {
@@ -151,7 +151,7 @@ describe('importPlugin', () => {
     const result = importPlugin(dir)
 
     expect(result.found).toEqual(['commands (1)'])
-    expect(result.warnings).toEqual(['carried unknown plugin.json key "xClaude" into harnesses.overrides.claude-code'])
+    expect(result.warnings).toEqual(['carried unknown plugin.json key "xClaude" into harnesses.claude-code.manifest'])
 
     const expected = stringify({
       name: 'custom-paths',
