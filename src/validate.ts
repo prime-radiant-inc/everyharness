@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { Ajv } from 'ajv'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { checkDrift, type DriftReport } from './manifest.js'
+import { loadConfig } from './config.js'
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'schemas')
 
@@ -27,6 +28,11 @@ export interface ValidateResult {
 }
 
 export function validate(root: string): ValidateResult {
+  // validate is the documented CI gate; a config `generate` refuses to load
+  // must fail validate too, not report a false-clean result (issue #10).
+  // Loading first — before drift/schema — means a config error always
+  // outranks them: it throws before either is computed.
+  loadConfig(root)
   const drift = checkDrift(root)
   const ajv = new Ajv({ strict: false, allErrors: true, logger: false })
   const ajv2020 = new Ajv2020({ strict: false, allErrors: true, logger: false })

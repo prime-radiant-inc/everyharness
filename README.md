@@ -20,7 +20,7 @@ Factory Droid, Grok Build CLI, Antigravity). Generated files are committed;
 npx everyharness init       # scaffold a new plugin
 npx everyharness import     # convert an existing Claude-format plugin
 npx everyharness generate   # emit per-harness files from everyharness.yaml
-npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
+npx everyharness validate   # drift + schema checks (exit 1 = config error, 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 npx everyharness test       # container-backed offline install checks (needs docker; exit 2 = failed checks)
 npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --check / --audit; reads release:)

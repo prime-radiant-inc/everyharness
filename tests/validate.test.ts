@@ -5,11 +5,26 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generate } from '../src/generate.js'
 import { validate } from '../src/validate.js'
+import { ConfigError } from '../src/config.js'
 
 function generatedFixture(): string {
   const dir = mkdtempSync(join(tmpdir(), 'eh-val-'))
   cpSync('fixtures/kitchen-sink', dir, { recursive: true })
   generate(dir)
+  return dir
+}
+
+// Reproduces issue #10: a plugin generated under a prior everyharness
+// version (committed files + manifest still valid) whose everyharness.yaml
+// has since been hand-edited into v1 syntax. generate() already refuses this
+// via loadConfig; validate() must refuse it too instead of reporting clean.
+function v1ConfigFixture(): string {
+  const dir = generatedFixture()
+  const yamlPath = join(dir, 'everyharness.yaml')
+  const yaml = readFileSync(yamlPath, 'utf8')
+  const v1Yaml = yaml.replace('bootstrap:\n  skill: using-kitchen-sink', 'bootstrap:\n  generate: true')
+  expect(v1Yaml).not.toEqual(yaml) // guard: fail loudly if the fixture's bootstrap block ever changes shape
+  writeFileSync(yamlPath, v1Yaml)
   return dir
 }
 
@@ -70,5 +85,18 @@ describe('validate', () => {
     expect(result.drift.clean).toBe(true)
     expect(result.ok).toBe(false)
     expect(result.schemaErrors.join('\n')).toMatch(/name/)
+  })
+
+  it('throws ConfigError instead of reporting clean when everyharness.yaml is v1 syntax (issue #10)', () => {
+    const dir = v1ConfigFixture()
+    expect(() => validate(dir)).toThrow(ConfigError)
+    expect(() => validate(dir)).toThrow(/bootstrap is now a tagged value/)
+  })
+
+  it('reports the ConfigError, not a drift report, when a v1 config AND drift are both present', () => {
+    const dir = v1ConfigFixture()
+    writeFileSync(join(dir, '.claude-plugin/plugin.json'), '{"name":"tampered"}')
+    expect(() => validate(dir)).toThrow(ConfigError)
+    expect(() => validate(dir)).toThrow(/bootstrap is now a tagged value/)
   })
 })
