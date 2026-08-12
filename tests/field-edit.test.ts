@@ -113,4 +113,59 @@ describe('readField / writeField', () => {
     const y = fileWith('broken.yaml', 'name: [unclosed\n')
     expect(() => readField(y, 'version')).toThrowError(ConfigError)
   })
+
+  it('throws ConfigError (not a raw yaml-library error) writing a numeric segment through an existing scalar in YAML', () => {
+    const y = fileWith('thing.yaml', 'version: hi\n')
+    try {
+      writeField(y, 'version.0', 'x')
+      expect.unreachable('writeField should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain(y)
+      expect((e as ConfigError).message).toContain('version.0')
+    }
+  })
+
+  it('throws ConfigError writing a string-keyed segment through an existing scalar in YAML', () => {
+    const y = fileWith('thing.yaml', 'version: hi\n')
+    expect(() => writeField(y, 'version.sub', 'x')).toThrowError(ConfigError)
+  })
+
+  it('throws ConfigError writing to a sequence-rooted YAML document', () => {
+    const y = fileWith('thing.yaml', '- a\n- b\n')
+    expect(() => writeField(y, 'version', 'x')).toThrowError(ConfigError)
+  })
+
+  it('throws ConfigError writing to a scalar-rooted YAML document', () => {
+    const y = fileWith('thing.yaml', 'hello\n')
+    expect(() => writeField(y, 'version', 'x')).toThrowError(ConfigError)
+  })
+
+  it('throws ConfigError instead of auto-vivifying a missing intermediate path in YAML', () => {
+    const y = fileWith('thing.yaml', 'version: 1.0.0\n')
+    const before = readFileSync(y, 'utf8')
+    expect(() => writeField(y, 'a.b.c', 'x')).toThrowError(ConfigError)
+    expect(readFileSync(y, 'utf8')).toBe(before)
+  })
+
+  it('throws ConfigError instead of auto-vivifying a missing intermediate path in JSON', () => {
+    const j = fileWith('pkg.json', '{"version": "1.0.0"}')
+    const before = readFileSync(j, 'utf8')
+    expect(() => writeField(j, 'a.b.c', 'x')).toThrowError(ConfigError)
+    expect(readFileSync(j, 'utf8')).toBe(before)
+  })
+
+  it('throws ConfigError instead of null-padding an out-of-bounds array index in YAML', () => {
+    const y = fileWith('marketplace.yaml', 'plugins:\n  - a\n  - b\n')
+    const before = readFileSync(y, 'utf8')
+    expect(() => writeField(y, 'plugins.5', 'x')).toThrowError(ConfigError)
+    expect(readFileSync(y, 'utf8')).toBe(before)
+  })
+
+  it('throws ConfigError instead of null-padding an out-of-bounds array index in JSON', () => {
+    const j = fileWith('marketplace.json', JSON.stringify({ plugins: ['a', 'b'] }))
+    const before = readFileSync(j, 'utf8')
+    expect(() => writeField(j, 'plugins.5', 'x')).toThrowError(ConfigError)
+    expect(readFileSync(j, 'utf8')).toBe(before)
+  })
 })

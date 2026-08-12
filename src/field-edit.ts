@@ -3,6 +3,13 @@ import { extname } from 'node:path'
 import { parseDocument } from 'yaml'
 import { ConfigError } from './config.js'
 
+// Contract: readField and writeField both require the full field path to
+// already exist with a string value. writeField never creates structure —
+// it edits an existing field in place and throws ConfigError (naming the
+// file and field) for any path that doesn't already resolve: a missing
+// segment, an out-of-bounds array index, or a path that runs through an
+// existing scalar. This holds identically for JSON and YAML.
+
 // A dotted field path ('plugins.0.version') split into segments, with
 // numeric segments converted to array indices.
 type Segment = string | number
@@ -115,13 +122,23 @@ export function writeField(filePath: string, field: string, value: string): void
   const segments = parseField(field)
   if (kind === 'json') {
     const data = parseJson(filePath, field, text)
-    if (!setIn(data, segments, value)) {
+    if (getIn(data, segments) === undefined || !setIn(data, segments, value)) {
       throw new ConfigError(describe(filePath, field, 'field not found'))
     }
     writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n')
     return
   }
   const doc = parseYaml(filePath, field, text)
+  // doc.setIn throws a raw (non-ConfigError) yaml-library Error for any path
+  // it can't navigate — through an existing scalar, off the end of a
+  // sequence, or when the document root isn't a collection — and silently
+  // creates missing intermediate maps rather than failing. Checking
+  // existence via getIn first (which never throws; it returns undefined for
+  // all of the same cases) lets us raise ConfigError uniformly instead and
+  // guarantees setIn always lands on a path that already exists.
+  if (doc.getIn(segments) === undefined) {
+    throw new ConfigError(describe(filePath, field, 'field not found'))
+  }
   doc.setIn(segments, value)
   writeFileSync(filePath, doc.toString())
 }
