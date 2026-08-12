@@ -77,7 +77,9 @@ version.
 ```yaml
 bump:
   files:
-    - { path: package.json, field: version }   # a version-bearing file everyharness does not generate
+    - { path: release.json, field: version }   # a version-bearing file everyharness does not generate
+      # note: package.json is usually generated (opencode/pi bootstrap) — declaring
+      # a generated file here is a ConfigError; generate already bumps those
   audit:
     exclude:
       - CHANGELOG.md                            # files the audit should ignore (glob, matched per path segment)

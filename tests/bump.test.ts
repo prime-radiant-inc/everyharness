@@ -181,6 +181,24 @@ describe('bump refuses a declared generated file', () => {
       expect((e as ConfigError).message).toContain('package.json')
     }
   })
+
+  it('bumpAudit rejects a manifest-tracked generated file (package.json)', () => {
+    const dir = generatedFixture()
+    setYaml(
+      dir,
+      yaml(dir).replace(
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: package.json, field: version }',
+      ),
+    )
+    try {
+      bumpAudit(dir)
+      expect.unreachable('bumpAudit should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain('package.json')
+    }
+  })
 })
 
 describe('bumpCheck', () => {
