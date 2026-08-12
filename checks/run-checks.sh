@@ -50,10 +50,13 @@ skip() {
   printf 'skip %s: %s\n' "$1" "$2"
 }
 
-# Collapses a (possibly multi-line) command-error blob into one line so a
-# single `not ok` line stays grep-able.
+# Collapses a (possibly multi-line) command-error blob into one line and
+# truncates to 300 chars. Single-line output stays grep-able, and truncation
+# prevents deep-check captures (which can be tens of KB: full opencode/codex
+# dumps on failure) from bloating the output. 300 chars is enough for the head
+# of a stack trace or parse error, which is what callers need.
 oneline() {
-  printf '%s' "$1" | tr '\n' ' '
+  printf '%s' "$1" | tr '\n' ' ' | cut -c1-300
 }
 
 # True (0) only if EVERY one of the plugin's skills (SKILL_NAMES, set by
