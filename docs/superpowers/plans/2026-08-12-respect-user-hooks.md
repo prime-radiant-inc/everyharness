@@ -128,3 +128,28 @@ expect(JSON.parse(manifestFile.content)).not.toHaveProperty('hooks')
 - [ ] **Step 2: All eight byte-exact; full `npm test` green**
 - [ ] **Step 3: Update findings doc + any README claim**
 - [ ] **Step 4: Commit** — `test: superpowers dogfood regenerates all eight manifests byte-for-byte`
+
+---
+
+### Task 4 (added after Task 3's BLOCKED escalation): claude-code key order matches the canonical hand-written files
+
+Task 3 exposed a third gap once the masks came off: `src/adapters/claude-code.ts` emits
+`.claude-plugin/plugin.json` keys as `name, version, description, author, license,
+repository, homepage, keywords` and `.claude-plugin/marketplace.json` as
+`name, description, plugins, owner`; superpowers' real files use
+`name, description, version, author, homepage, repository, license, keywords` and
+`name, description, owner, plugins`. deepMerge never reorders, so no config can fix it.
+
+**Scope (binding):** reorder ONLY the claude-code adapter's own object construction —
+`pluginManifest()`'s literal/append order and `marketplaceManifest()`'s (`owner` before
+`plugins`). Do NOT touch `baseManifestFields()` or any other adapter: cursor, codex,
+devin, and kimi are already byte-exact with the current shared order and must stay so.
+Kitchen-sink snapshot updates for the two claude-code files are expected; every other
+snapshot entry must be byte-identical. JSON key order is semantically meaningless, so
+this is cosmetic for consumers; the dogfood byte-exact goal makes the hand-written
+files the canonical order.
+
+- [ ] Reorder, with a comment naming the canonical source (superpowers' hand-written manifests)
+- [ ] Snapshot updates limited to the two claude-code entries
+- [ ] Full `npm test` green; then complete Task 3 (all eight byte-exact, findings doc, README)
+- [ ] Commit — `fix: claude-code manifest key order matches the canonical hand-written files`
