@@ -4,7 +4,7 @@ import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json } from './shared.js'
+import { baseManifestFields, json, bootstrapEmitsHooks } from './shared.js'
 
 // Where the cursor adapter emits the bootstrap SessionStart hook and its
 // hooks-cursor.json, when config.bootstrap.kind === 'skill'. Shares the
@@ -28,7 +28,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
     ...rest,
   }
   manifest.skills = `./${config.components.skills}/`
-  if (config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate') {
+  if (bootstrapEmitsHooks(config.bootstrap)) {
     manifest.hooks = `./${BOOTSTRAP_HOOKS_JSON_PATH}`
   }
   const override = config.harnesses.overrides.cursor
@@ -48,7 +48,7 @@ function hooksManifest(): Record<string, unknown> {
 // marketplace search once listed there — no fabricated marketplace listing.
 function installDoc(model: PluginModel): string {
   const { config } = model
-  const bootstrapActive = config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate'
+  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap)
 
   const emitted = ['`.cursor-plugin/plugin.json`']
   if (bootstrapActive) {
@@ -71,11 +71,16 @@ function installDoc(model: PluginModel): string {
     "Point it at this plugin's directory (or search the plugin marketplace once it's listed there). Cursor reads `.cursor-plugin/plugin.json`. Consult Cursor's plugin docs if this doesn't match your installed version.",
   ]
   if (model.hooks !== undefined) {
+    // Cursor never translates hand-written hook entries, in either bootstrap
+    // mode; only which (if any) bootstrap hook is emitted varies.
+    const bootstrapHookNote = bootstrapActive
+      ? 'only the bootstrap sessionStart hook is emitted'
+      : 'no hooks are emitted for Cursor'
     lines.push(
       '',
       '## Caveats',
       '',
-      `- Hand-written entries in \`${config.components.hooks}\` are not translated for Cursor; only the bootstrap sessionStart hook is emitted.`,
+      `- Hand-written entries in \`${config.components.hooks}\` are not translated for Cursor; ${bootstrapHookNote}.`,
     )
   }
   return lines.join('\n')
@@ -97,6 +102,7 @@ export const cursor: HarnessAdapter = {
     const warnings: string[] = []
     const files: GeneratedFile[] = [{ path: '.cursor-plugin/plugin.json', content: json(pluginManifest(model)) }]
 
+    const emitHooks = bootstrapEmitsHooks(config.bootstrap)
     if (config.bootstrap.kind === 'skill') {
       const skillName = config.bootstrap.skill
       const skill = model.skills.find((s) => s.name === skillName)
@@ -104,26 +110,34 @@ export const cursor: HarnessAdapter = {
         // buildModel validates the bootstrap skill exists before adapters run.
         throw new Error(`bootstrap skill "${skillName}" not found (buildModel should have validated this)`)
       }
-      files.push(
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(hooksManifest()) },
-      )
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(hooksManifest()) },
+        )
+      }
     } else if (config.bootstrap.kind === 'generate') {
-      files.push(
-        { path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) },
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(hooksManifest()) },
-      )
+      // The generated bootstrap content file is emitted regardless of
+      // emitHooks: other adapters (gemini, opencode, pi, hermes) read it at
+      // runtime, independent of whether cursor wires its own shell hook to
+      // it.
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(hooksManifest()) },
+        )
+      }
     }
 
     if (model.hooks !== undefined) warnings.push('user hooks are not translated for cursor in v1')

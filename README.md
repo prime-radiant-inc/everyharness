@@ -28,7 +28,7 @@ npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --ch
 
 `everyharness test` runs two offline tiers inside the container: first it parses every generated harness manifest and confirms referenced paths exist, then it performs a **real install** of the plugin into each harness CLI (claude, codex, gemini, opencode, grok, droid, hermes, copilot, pi) and asserts the CLI actually enumerates the plugin's skills — the check that catches a manifest that parses but is wired to the wrong place. Harnesses with no offline enumeration path (kimi, cursor, devin) are reported as `skip`. It pulls ghcr.io/prime-radiant-inc/everyharness-container on first use (large image, ~15GB, linux/amd64) — prefetch with `docker pull` if you want progress control.
 
-**Current status: generation works via 11 adapters covering 13 harnesses; `init` scaffolds, `import` converts Claude-format plugins, every generation emits install docs + a support matrix, and `everyharness test` runs offline manifest checks plus real per-harness install + skill-enumeration checks for all harnesses inside the shared container image (ghcr.io/prime-radiant-inc/everyharness-container). The superpowers dogfood test regenerates superpowers' hand-maintained manifests (4 of 8 byte-exact, 4 with one documented difference each).**
+**Current status: generation works via 11 adapters covering 13 harnesses; `init` scaffolds, `import` converts Claude-format plugins, every generation emits install docs + a support matrix, and `everyharness test` runs offline manifest checks plus real per-harness install + skill-enumeration checks for all harnesses inside the shared container image (ghcr.io/prime-radiant-inc/everyharness-container). The superpowers dogfood test regenerates all eight of superpowers' hand-maintained manifests byte-for-byte.**
 
 ## Configuration
 
@@ -63,6 +63,22 @@ marketplace:
   entry's `keywords`).
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
+
+### `harnesses.overrides`
+
+Per-harness overrides allow you to customize specific fields in a harness's generated manifest without affecting others. Overrides are deep-merged with the top-level config fields — arrays and scalars are replaced wholesale, objects are merged recursively.
+
+```yaml
+harnesses:
+  overrides:
+    kimi:
+      displayName: Kimi Code
+      repository: null         # special: null deletes the inherited field
+```
+
+In the example above, `repository: null` uses the **delete sentinel** to remove the inherited `repository` field from the kimi manifest — essential when a field is required for some harnesses but must be absent in others (e.g., kimi's plugin.json format doesn't include `repository`, while claude-code's does).
+
+Note: A literal `null` cannot be set as an object field's value via overrides, at any nesting depth; `null` is always treated as a delete sentinel. If you need a null value in the generated manifest, emit it via an adapter's custom field logic instead. (Arrays are replaced wholesale, so a `null` entry inside an array passes through unaffected.)
 
 ### `bump`
 

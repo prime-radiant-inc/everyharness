@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildModel } from '../../src/model.js'
@@ -102,6 +102,79 @@ describe('cursor adapter with harnesses.overrides.cursor', () => {
     const result = cursor.emit(overrideModel)
     const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
     expect(manifest.displayName).toBe('Fancy')
+  })
+})
+
+describe('cursor adapter with bootstrap.emitHooks: false', () => {
+  it('emits no hooks/ files and no manifest hooks key for skill mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-skill-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks\nversion: 1.0.0\ndescription: emitHooks false fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const result = cursor.emit(noHooksModel)
+    expect(result.files.map((f) => f.path).filter((p) => p.startsWith('hooks/'))).toEqual([])
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
+    expect(manifest).not.toHaveProperty('hooks')
+  })
+
+  it('still writes the generated bootstrap.md for generate mode, but no shell-hook files or manifest hooks key', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-generate-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-generate\nversion: 1.0.0\ndescription: emitHooks false generate fixture\nbootstrap:\n  generate: true\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const result = cursor.emit(noHooksModel)
+    const bootstrapMd = result.files.find((f) => f.path === 'hooks/everyharness/bootstrap.md')
+    expect(bootstrapMd).toBeDefined()
+    expect(bootstrapMd?.content).toContain('# no-hooks-generate plugin')
+    const hookFiles = result.files.map((f) => f.path).filter((p) => p.startsWith('hooks/') && p !== 'hooks/everyharness/bootstrap.md')
+    expect(hookFiles).toEqual([])
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.cursor-plugin/plugin.json')!.content)
+    expect(manifest).not.toHaveProperty('hooks')
+  })
+
+  it('drops the bootstrap-hook bullet from installDoc', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-installdoc-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-doc\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const body = cursor.installDoc!(noHooksModel)
+    expect(body).not.toContain('bootstrap hook')
+  })
+
+  it('does not claim a bootstrap hook is emitted in the Caveats section when the plugin has hand-written hooks', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-installdoc-hooks-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    mkdirSync(join(dir, 'hooks'), { recursive: true })
+    writeFileSync(join(dir, 'hooks', 'hooks.json'), '{"hooks":{}}\n')
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-doc-hooks\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture with hand-written hooks\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const body = cursor.installDoc!(noHooksModel)
+    expect(body).toContain('## Caveats')
+    expect(body).not.toContain('only the bootstrap sessionStart hook is emitted')
+    expect(body).toContain('no hooks are emitted for Cursor')
   })
 })
 

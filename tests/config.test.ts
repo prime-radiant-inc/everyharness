@@ -48,7 +48,7 @@ describe('loadConfig', () => {
       '  category: Developer Tools',
       '  tags: [demo]',
     ].join('\n')))
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: true })
     expect(cfg.harnesses.exclude).toEqual(['devin'])
     expect(cfg.harnesses.overrides['claude-code']).toEqual({
       homepage: 'https://example.com/kitchen-sink',
@@ -70,6 +70,46 @@ describe('loadConfig', () => {
     expect(() => loadConfig(repoWith(
       'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: a\n  generate: true\n'
     ))).toThrowError(/exactly one/i)
+  })
+
+  it('defaults bootstrap.emitHooks to true for skill mode', () => {
+    const cfg = loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n'
+    ))
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: true })
+  })
+
+  it('respects an explicit bootstrap.emitHooks: false for skill mode', () => {
+    const cfg = loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  skill: x\n  emitHooks: false\n'
+    ))
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'x', emitHooks: false })
+  })
+
+  it('defaults bootstrap.emitHooks to true for generate mode', () => {
+    const cfg = loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  generate: true\n'
+    ))
+    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: true })
+  })
+
+  it('respects an explicit bootstrap.emitHooks: false for generate mode', () => {
+    const cfg = loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  generate: true\n  emitHooks: false\n'
+    ))
+    expect(cfg.bootstrap).toEqual({ kind: 'generate', emitHooks: false })
+  })
+
+  it('rejects bootstrap.emitHooks set alongside none', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  none: true\n  emitHooks: false\n'
+    ))).toThrow(/emitHooks/)
+  })
+
+  it('rejects bootstrap.emitHooks: true set alongside none too — emitHooks is meaningless without a bootstrap', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  none: true\n  emitHooks: true\n'
+    ))).toThrow(/emitHooks/)
   })
 
   it('reports a missing everyharness.yaml as a ConfigError', () => {
@@ -138,7 +178,7 @@ describe('loadConfig', () => {
   it('loads the kitchen-sink fixture config', () => {
     const cfg = loadConfig('fixtures/kitchen-sink')
     expect(cfg.name).toBe('kitchen-sink')
-    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink' })
+    expect(cfg.bootstrap).toEqual({ kind: 'skill', skill: 'using-kitchen-sink', emitHooks: true })
   })
 
   it('normalizes trailing slashes on component paths', () => {

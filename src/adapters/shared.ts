@@ -25,6 +25,22 @@ export function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n'
 }
 
+// Whether a harness's shell-hook tier (session-start / run-hook.cmd / merged
+// hooks.json, and the manifest's `hooks` pointer at that merged file) should
+// be emitted for an active bootstrap. False when bootstrap is inactive
+// ('none'), or when the plugin author set `bootstrap.emitHooks: false` to
+// keep their own hand-written hooks wiring instead. Shared by claude-code
+// and cursor, the only two adapters with a shell-hook tier.
+export function bootstrapEmitsHooks(bootstrap: EveryharnessConfig['bootstrap']): boolean {
+  switch (bootstrap.kind) {
+    case 'skill':
+    case 'generate':
+      return bootstrap.emitHooks
+    case 'none':
+      return false
+  }
+}
+
 // The marketplace listing name an install id addresses the plugin by:
 // `config.marketplace.name` when set, otherwise the local-dev default
 // `<name>-dev`. Shared so every place that must agree on this name stays in

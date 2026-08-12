@@ -13,8 +13,8 @@ export class ConfigError extends Error {
 }
 
 export type BootstrapMode =
-  | { kind: 'skill'; skill: string }
-  | { kind: 'generate' }
+  | { kind: 'skill'; skill: string; emitHooks: boolean }
+  | { kind: 'generate'; emitHooks: boolean }
   | { kind: 'none' }
 
 // Shared with import.ts, which validates a Claude plugin.json's name against
@@ -67,6 +67,7 @@ const rawSchema = z.object({
       skill: z.string().optional(),
       generate: z.literal(true).optional(),
       none: z.literal(true).optional(),
+      emitHooks: z.boolean().optional(),
     })
     .optional(),
   components: z
@@ -155,9 +156,15 @@ function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): Bootstra
       [`bootstrap has ${count} modes set`],
     )
   }
-  if (raw.skill !== undefined) return { kind: 'skill', skill: raw.skill }
-  if (raw.generate) return { kind: 'generate' }
-  return { kind: 'none' }
+  if (raw.none) {
+    if (raw.emitHooks !== undefined) {
+      throw new ConfigError('bootstrap.emitHooks: only valid with skill or generate, not none')
+    }
+    return { kind: 'none' }
+  }
+  const emitHooks = raw.emitHooks ?? true
+  if (raw.skill !== undefined) return { kind: 'skill', skill: raw.skill, emitHooks }
+  return { kind: 'generate', emitHooks }
 }
 
 function checkMarketplace(marketplace: z.infer<typeof rawSchema>['marketplace'], repository: string | undefined): void {

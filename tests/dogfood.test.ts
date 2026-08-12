@@ -69,36 +69,17 @@ interface ExpectedDifference {
 // below deletes that key from BOTH the generated and original objects
 // before asserting deep equality, so an entry only masks the exact
 // difference it names -- anything else still fails the test. This list is
-// the acceptance criterion: an undocumented difference fails; see
-// docs/superpowers/plans/2026-08-11-dogfood-findings.md for the two entries
-// that are genuine everyharness expressiveness gaps (marked FINDING) versus
-// the two that are intentional design.
-const EXPECTED_DIFFERENCES: ExpectedDifference[] = [
-  {
-    file: '.claude-plugin/plugin.json',
-    path: 'hooks',
-    reason:
-      "DESIGNED: everyharness's claude-code adapter always points the manifest's `hooks` key at its own generated hooks/everyharness/hooks.json when bootstrap.skill is set. superpowers hand-wires its bootstrap hook directly under hooks/ (hooks/run-hook.cmd, hooks/session-start) and relies on Claude Code's default hooks/hooks.json auto-discovery, so its plugin.json carries no `hooks` key at all. This is Plan 3's documented hooks-pointer difference, not a bug.",
-  },
-  {
-    file: '.cursor-plugin/plugin.json',
-    path: 'hooks',
-    reason:
-      'DESIGNED: same bootstrap-hook-path difference as claude-code above -- everyharness points at ./hooks/everyharness/hooks-cursor.json, superpowers points at ./hooks/hooks-cursor.json.',
-  },
-  {
-    file: '.claude-plugin/marketplace.json',
-    path: 'description',
-    reason:
-      "FINDING (expressiveness gap): claude-code's marketplaceManifest() (src/adapters/claude-code.ts) hardcodes the marketplace description as `Development marketplace for ${config.name}` and never deep-merges harnesses.overrides['claude-code'] the way pluginManifest() does -- there is no override hook for marketplace.json at all. superpowers' hand-written marketplace description ('Development marketplace for Superpowers core skills library') can't be reproduced through config as a result. Reported, not fixed here per Task 6's process rule.",
-  },
-  {
-    file: '.kimi-plugin/plugin.json',
-    path: 'repository',
-    reason:
-      "FINDING (expressiveness gap): superpowers' real .kimi-plugin/plugin.json omits `repository` entirely, but everyharness has no way to remove a field inherited from the top-level config for one adapter only -- harnesses.overrides is deep-merged (fileset.ts deepMerge), which can add or replace keys but never delete one. Top-level `repository` is required (present, matching) on claude-code/codex/devin/cursor, so kimi inherits it too, with no override able to unset it. Reported, not fixed here per Task 6's process rule.",
-  },
-]
+// the acceptance criterion: an undocumented difference fails.
+//
+// Empty as of this branch. All three differences ever tolerated here --
+// claude-code's and cursor's forced hooks pointer, and marketplace.json's
+// hardcoded description -- are now closed: `bootstrap.emitHooks: false`
+// (see src/adapters/shared.ts's bootstrapEmitsHooks) lets superpowers keep
+// its own hand-wired hooks instead of the generated pointer, and
+// `marketplace.description` (issue #7) gives marketplaceManifest() an
+// override hook. See docs/superpowers/plans/2026-08-11-dogfood-findings.md
+// for the Resolution section recording how each one closed.
+const EXPECTED_DIFFERENCES: ExpectedDifference[] = []
 
 function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -133,6 +114,7 @@ function withExpectedDifferencesRemoved(
 // override strings themselves came from.
 function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): Record<string, unknown> {
   const claude = originals['.claude-plugin/plugin.json']
+  const marketplace = originals['.claude-plugin/marketplace.json']
   const codex = originals['.codex-plugin/plugin.json']
   const devin = originals['.devin-plugin/plugin.json']
   const kimi = originals['.kimi-plugin/plugin.json']
@@ -153,15 +135,29 @@ function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): 
     repository: claude.repository,
     license: claude.license,
     keywords: claude.keywords,
-    bootstrap: { skill: 'using-superpowers' },
+    // emitHooks: false -- superpowers hand-wires its own bootstrap hooks
+    // (hooks/run-hook.cmd, hooks/session-start) directly under hooks/ rather
+    // than the adapters' generated hooks/everyharness/*.json, so neither
+    // claude-code nor cursor should force their own hooks pointer into the
+    // manifest. See src/adapters/shared.ts's bootstrapEmitsHooks.
+    bootstrap: { skill: 'using-superpowers', emitHooks: false },
+    // Closes Finding 1: marketplaceManifest() (src/adapters/claude-code.ts)
+    // deep-merges this onto its hardcoded `Development marketplace for
+    // ${config.name}` default, reproducing superpowers' hand-written copy.
+    marketplace: { description: marketplace.description },
     harnesses: {
       overrides: {
-        // cursor: display name and description are cursor-specific copy;
-        // everything else (author, homepage, repository, license,
-        // keywords) matches the shared base fields above with no override.
+        // cursor: display name and description are cursor-specific copy.
+        // hooks points at superpowers' own hand-wired hooks-cursor.json --
+        // with emitHooks: false above, pluginManifest() no longer supplies
+        // its own hooks pointer, so the override channel carries the real
+        // value instead. Everything else (author, homepage, repository,
+        // license, keywords) matches the shared base fields above with no
+        // override.
         cursor: {
           displayName: cursor.displayName,
           description: cursor.description,
+          hooks: cursor.hooks,
         },
         // gemini: only description differs from the shared base (gemini's
         // extensionManifest doesn't include author/homepage/repository/
@@ -186,13 +182,13 @@ function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): 
         },
         // kimi: its own (shorter) description, codex's keyword set, its
         // tool-mapping skillInstructions, and its own (smaller) interface
-        // block. Deliberately has no `repository` override -- see the
-        // EXPECTED_DIFFERENCES entry for why that field still leaks through.
+        // block. Uses repository: null to delete the inherited field.
         kimi: {
           description: kimi.description,
           keywords: kimi.keywords,
           skillInstructions: kimi.skillInstructions,
           interface: kimi.interface,
+          repository: null,
         },
         // agents-marketplace: displayName override plus a full replacement
         // of the plugins array (deepMerge replaces arrays wholesale) to add
@@ -212,10 +208,11 @@ if (!SUPERPOWERS_AVAILABLE) {
   )
 }
 
-// The COMPARED_FILES with no EXPECTED_DIFFERENCES entry -- the README's "4 of
-// 8 byte-exact" claim is about these four. Derived rather than hardcoded so
-// it can't drift from EXPECTED_DIFFERENCES itself (e.g. if one of the two
-// FINDING gaps above is ever fixed and its entry removed).
+// The COMPARED_FILES with no EXPECTED_DIFFERENCES entry -- with
+// EXPECTED_DIFFERENCES now empty, that's all eight, and the README's
+// dogfood claim is "8 of 8 byte-exact". Derived rather than hardcoded so it
+// can't drift from EXPECTED_DIFFERENCES itself (e.g. if a future difference
+// needs to be tolerated and documented here again).
 const DIFFERENCED_FILES = new Set(EXPECTED_DIFFERENCES.map((d) => d.file))
 const BYTE_EXACT_FILES = COMPARED_FILES.filter((file) => !DIFFERENCED_FILES.has(file))
 

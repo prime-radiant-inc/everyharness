@@ -5,7 +5,7 @@ import type { EveryharnessConfig } from '../config.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json, githubOwnerRepo, marketplaceName } from './shared.js'
+import { baseManifestFields, json, githubOwnerRepo, marketplaceName, bootstrapEmitsHooks } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -28,15 +28,17 @@ const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks.json`
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
   const base = baseManifestFields(config)
-  // baseManifestFields orders homepage/repository/license the other way
-  // (shared with cursor/codex/devin/kimi); reconstruct claude-code's own
-  // on-disk order (license, repository, homepage) to keep generated output
-  // byte-identical.
-  const manifest: Record<string, unknown> = { name: base.name, version: base.version, description: base.description }
+  // Field order matches superpowers' hand-written .claude-plugin/plugin.json
+  // (name, description, version, author, homepage, repository, license,
+  // keywords) -- the canonical order the dogfood test regenerates
+  // byte-for-byte. Differs from baseManifestFields' own
+  // name/version/description/.../homepage/repository/license order (shared
+  // with cursor/codex/devin/kimi, which stay on that order).
+  const manifest: Record<string, unknown> = { name: base.name, description: base.description, version: base.version }
   if ('author' in base) manifest.author = base.author
-  if ('license' in base) manifest.license = base.license
-  if ('repository' in base) manifest.repository = base.repository
   if ('homepage' in base) manifest.homepage = base.homepage
+  if ('repository' in base) manifest.repository = base.repository
+  if ('license' in base) manifest.license = base.license
   if ('keywords' in base) manifest.keywords = base.keywords
   // Claude Code auto-discovers commands/, agents/, skills/, hooks/hooks.json,
   // and .mcp.json; only non-default locations need explicit manifest keys.
@@ -49,7 +51,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (model.agents.length && config.components.agents !== 'agents') {
     manifest.agents = `./${config.components.agents}`
   }
-  if (config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate') {
+  if (bootstrapEmitsHooks(config.bootstrap)) {
     // Bootstrap hooks always live at a non-default path, and always exist
     // (even with no user hooks), so this takes priority over the general
     // non-default-path rule below.
@@ -87,12 +89,15 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
   if (config.marketplace?.category) entry.category = config.marketplace.category
   if (config.marketplace?.tags) entry.keywords = config.marketplace.tags
   if (config.marketplace?.strict !== undefined) entry.strict = config.marketplace.strict
+  // Field order matches superpowers' hand-written .claude-plugin/marketplace.json
+  // (name, description, owner, plugins) -- the canonical order the dogfood
+  // test regenerates byte-for-byte.
   const marketplace: Record<string, unknown> = {
     name: marketplaceName(config),
     description: config.marketplace?.description ?? `Development marketplace for ${config.name}`,
-    plugins: [entry],
   }
   if (config.author) marketplace.owner = config.author
+  marketplace.plugins = [entry]
   return marketplace
 }
 
@@ -105,7 +110,7 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
 function installDoc(model: PluginModel): string {
   const { config } = model
   const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
-  const bootstrapActive = config.bootstrap.kind === 'skill' || config.bootstrap.kind === 'generate'
+  const bootstrapActive = bootstrapEmitsHooks(config.bootstrap)
 
   const emitted = ['`.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`']
   if (bootstrapActive) {
@@ -162,6 +167,7 @@ export const claudeCode: HarnessAdapter = {
       { path: '.claude-plugin/plugin.json', content: json(pluginManifest(model)) },
       { path: '.claude-plugin/marketplace.json', content: json(marketplaceManifest(model)) },
     ]
+    const emitHooks = bootstrapEmitsHooks(config.bootstrap)
     if (config.bootstrap.kind === 'skill') {
       const skillName = config.bootstrap.skill
       const skill = model.skills.find((s) => s.name === skillName)
@@ -169,26 +175,34 @@ export const claudeCode: HarnessAdapter = {
         // buildModel validates the bootstrap skill exists before adapters run.
         throw new Error(`bootstrap skill "${skillName}" not found (buildModel should have validated this)`)
       }
-      files.push(
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
-      )
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: `${skill.dir}/SKILL.md` }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+        )
+      }
     } else if (config.bootstrap.kind === 'generate') {
-      files.push(
-        { path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) },
-        {
-          path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
-          content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
-          executable: true,
-        },
-        { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
-        { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
-      )
+      // The generated bootstrap content file is emitted regardless of
+      // emitHooks: other adapters (gemini, opencode, pi, hermes) read it at
+      // runtime, independent of whether claude-code wires its own shell hook
+      // to it.
+      files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
+      if (emitHooks) {
+        files.push(
+          {
+            path: `${BOOTSTRAP_HOOKS_DIR}/session-start`,
+            content: sessionStartScript({ pluginName: config.name, bootstrapContentPath: GENERATED_BOOTSTRAP_PATH }),
+            executable: true,
+          },
+          { path: `${BOOTSTRAP_HOOKS_DIR}/run-hook.cmd`, content: runHookCmd(), executable: true },
+          { path: BOOTSTRAP_HOOKS_JSON_PATH, content: json(mergedClaudeHooks(model.hooks)) },
+        )
+      }
     }
     return { files, warnings }
   },

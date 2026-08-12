@@ -234,6 +234,88 @@ describe('claude-code adapter marketplace field handling', () => {
   })
 })
 
+describe('claude-code adapter with bootstrap.emitHooks: false', () => {
+  it('emits no hooks/ files and no manifest hooks key for skill mode (no user hooks file)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-skill-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks\nversion: 1.0.0\ndescription: emitHooks false fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const result = claudeCode.emit(noHooksModel)
+    expect(result.files.map((f) => f.path).filter((p) => p.startsWith('hooks/'))).toEqual([])
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.claude-plugin/plugin.json')!.content)
+    expect(manifest).not.toHaveProperty('hooks')
+  })
+
+  it('still writes the generated bootstrap.md for generate mode, but no shell-hook files or manifest hooks key', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-generate-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-generate\nversion: 1.0.0\ndescription: emitHooks false generate fixture\nbootstrap:\n  generate: true\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const result = claudeCode.emit(noHooksModel)
+    const bootstrapMd = result.files.find((f) => f.path === 'hooks/everyharness/bootstrap.md')
+    expect(bootstrapMd).toBeDefined()
+    expect(bootstrapMd?.content).toContain('# no-hooks-generate plugin')
+    const hookFiles = result.files.map((f) => f.path).filter((p) => p.startsWith('hooks/') && p !== 'hooks/everyharness/bootstrap.md')
+    expect(hookFiles).toEqual([])
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.claude-plugin/plugin.json')!.content)
+    expect(manifest).not.toHaveProperty('hooks')
+  })
+
+  it('falls back to the existing non-bootstrap hooks pointer when a non-default hooks source exists', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-fallback-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(join(dir, 'my-hooks.json'), '{"hooks":{}}\n')
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: own-hooks',
+        'version: 1.0.0',
+        'description: own hooks fallback fixture',
+        'bootstrap:',
+        '  skill: using-demo',
+        '  emitHooks: false',
+        'components:',
+        '  hooks: my-hooks.json',
+      ].join('\n'),
+    )
+    const fallbackModel = buildModel(dir)
+    const result = claudeCode.emit(fallbackModel)
+    expect(result.files.map((f) => f.path).filter((p) => p.startsWith('hooks/everyharness'))).toEqual([])
+    const manifest = JSON.parse(result.files.find((f) => f.path === '.claude-plugin/plugin.json')!.content)
+    expect(manifest.hooks).toBe('./my-hooks.json')
+  })
+
+  it('drops the bootstrap-hook bullet and Caveats section from installDoc', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-installdoc-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-doc\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const body = claudeCode.installDoc!(noHooksModel)
+    expect(body).not.toContain('bootstrap hook')
+    expect(body).not.toContain('## Caveats')
+  })
+})
+
 describe('claude-code adapter with a non-default skills path', () => {
   it('emits a skills key in plugin.json pointing at the custom directory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-'))
