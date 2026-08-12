@@ -428,6 +428,84 @@ describe('checks/run-checks.sh', () => {
     }
     expect(result.status).toBe(0)
   })
+
+  // --- exec-bit preservation sweep (#9) ----------------------------------
+  // A skill can ship an executable script; if any harness's install path
+  // drops its mode bit the skill dies with "Permission denied" while every
+  // other check stays green. deep_exec_bits() discovers every executable file
+  // under skills/, verifies the staged copy kept the bit, then reuses each
+  // per-harness install to assert the installed copy kept it too.
+
+  // Sources the real discovery helper out of the script (not a copy) and runs
+  // it against a tree with one executable and one non-executable skill file:
+  // only the executable one is listed, as a path relative to the plugin root.
+  it('discover_exec_skill_files() lists executable skill files and ignores non-executable ones', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-exec-discover-'))
+    mkdirSync(join(dir, 'skills', 'greeting', 'scripts'), { recursive: true })
+    const exec = join(dir, 'skills', 'greeting', 'scripts', 'hello.sh')
+    writeFileSync(exec, '#!/usr/bin/env bash\necho hello\n')
+    chmodSync(exec, 0o755)
+    const plain = join(dir, 'skills', 'greeting', 'SKILL.md')
+    writeFileSync(plain, 'plain\n')
+    chmodSync(plain, 0o644)
+
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        `source <(sed -n "/^discover_exec_skill_files()/,/^}/p" "${CHECKS_SCRIPT}"); discover_exec_skill_files "${dir}"`,
+      ],
+      { encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe('skills/greeting/scripts/hello.sh')
+  })
+
+  // A plugin that ships no executable skill files pays exactly one line — the
+  // documented single skip — and does no per-harness exec-bit work. Built by
+  // stripping the fixture's hello.sh of its mode bit after generation.
+  it('emits exactly one "skip exec-bits:" line when the plugin ships no executable skill files', () => {
+    const dir = generatedKitchenSink()
+    chmodSync(join(dir, 'skills', 'greeting', 'scripts', 'hello.sh'), 0o644)
+    const result = spawnSync('bash', [CHECKS_SCRIPT], {
+      encoding: 'utf8',
+      env: {
+        EH_PLUGIN_NAME: 'kitchen-sink',
+        EH_PLUGIN_ROOT: dir,
+        PATH: sandboxBin(),
+        HOME: mkdtempSync(join(tmpdir(), 'eh-home-')),
+      },
+    })
+    const execLines = result.stdout.split('\n').filter((l) => l.includes('exec-bits'))
+    expect(execLines).toEqual(['skip exec-bits: plugin ships no executable skill files'])
+    expect(result.status).toBe(0)
+  }, 30_000)
+
+  // With the kitchen-sink fixture (which now ships an executable hello.sh) and
+  // no harness CLI on PATH: the source baseline passes (the staged copy kept
+  // the bit) and every per-harness check degrades to a CLI-absent skip,
+  // staying exit 0. kimi is skipped as TUI-only; opencode and pi emit no
+  // exec-bits line at all (they don't install by copy).
+  it('reports ok exec-bits-source plus CLI-absent per-harness skips against the fixture that ships an executable skill script', () => {
+    const dir = generatedKitchenSink()
+    const result = spawnSync('bash', [CHECKS_SCRIPT], {
+      encoding: 'utf8',
+      env: {
+        EH_PLUGIN_NAME: 'kitchen-sink',
+        EH_PLUGIN_ROOT: dir,
+        PATH: sandboxBin(),
+        HOME: mkdtempSync(join(tmpdir(), 'eh-home-')),
+      },
+    })
+    expect(result.stdout).toMatch(/^ok exec-bits-source: /m)
+    for (const harness of ['claude-code', 'gemini', 'codex', 'copilot', 'droid', 'grok', 'hermes']) {
+      expect(result.stdout).toMatch(new RegExp(`^skip exec-bits-${harness}: `, 'm'))
+    }
+    expect(result.stdout).toMatch(/^skip exec-bits-kimi: install is TUI-only/m)
+    expect(result.stdout).not.toMatch(/^(ok|skip|not ok) exec-bits-(opencode|pi):/m)
+    expect(result.stdout).not.toMatch(/^not ok /m)
+    expect(result.status).toBe(0)
+  }, 30_000)
 })
 
 describe('CLI test command e2e', () => {

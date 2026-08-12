@@ -539,6 +539,93 @@ TS
   fi
 }
 
+# Lists every executable regular file under the plugin's skills tree, one per
+# line, as a path relative to the plugin root ($1). This IS the source-tree
+# truth the exec-bit sweep is built on: a skill can ship a script, and if any
+# install path drops its mode bit the skill dies with "Permission denied"
+# while every other check stays green (issue #9). Empty output (no skills tree,
+# or no executables) is normal — most plugins ship none.
+discover_exec_skill_files() {
+  local root="$1" skills_root="$1/skills" abs
+  [ -d "$skills_root" ] || return 0
+  find "$skills_root" -type f -perm -u+x 2>/dev/null | sort |
+    while IFS= read -r abs; do
+      printf '%s\n' "${abs#"$root"/}"
+    done
+}
+
+# --- exec-bits: assert every executable skill file keeps its mode bit through
+# staging and through each harness's real install. Reuses the installs the
+# per-harness deep checks already performed this run, so deep_checks calls it
+# AFTER them. Locates each installed copy by matching a known relative path
+# (the first discovered executable), never a hardcoded version/hash-suffixed
+# cache dir. opencode and pi are intentionally absent: opencode loads the
+# plugin in place and pi runs the emitted TS directly, so neither produces an
+# installed copy whose mode bits could differ from the staged baseline.
+exec_bits_harness() {
+  local harness="$1" cli="$2" root="$3" first_rel="$4"
+  if ! command -v "$cli" >/dev/null 2>&1; then
+    skip "exec-bits-$harness" "$cli not on PATH"
+    return
+  fi
+  local hit inst_root
+  hit=$(find "$root" -type f -path "*/$first_rel" 2>/dev/null | head -n1)
+  if [ -z "$hit" ]; then
+    skip "exec-bits-$harness" "no installed copy found under $root"
+    return
+  fi
+  inst_root="${hit%/"$first_rel"}"
+  local rel
+  local lost=()
+  for rel in "${EXEC_FILES[@]}"; do
+    { [ -f "$inst_root/$rel" ] && [ -x "$inst_root/$rel" ]; } || lost+=("$rel")
+  done
+  if [ "${#lost[@]}" -eq 0 ]; then
+    ok "exec-bits-$harness" "every executable skill file survived at $inst_root"
+  else
+    not_ok "exec-bits-$harness" "lost the executable bit: $(oneline "${lost[*]}")"
+  fi
+}
+
+deep_exec_bits() {
+  EXEC_FILES=()
+  local rel
+  while IFS= read -r rel; do
+    [ -n "$rel" ] && EXEC_FILES+=("$rel")
+  done < <(discover_exec_skill_files "$PLUGIN_ROOT")
+
+  if [ "${#EXEC_FILES[@]}" -eq 0 ]; then
+    skip exec-bits "plugin ships no executable skill files"
+    return
+  fi
+
+  # Source baseline first: the staged copy $WORK is what every install actually
+  # came from, so a bit lost there poisons the whole sweep — report it and stop
+  # rather than running per-harness checks against a broken baseline.
+  local lost=()
+  for rel in "${EXEC_FILES[@]}"; do
+    [ -x "$WORK/$rel" ] || lost+=("$rel")
+  done
+  if [ "${#lost[@]}" -gt 0 ]; then
+    not_ok exec-bits-source "executable bit missing in the staged copy: $(oneline "${lost[*]}")"
+    return
+  fi
+  ok exec-bits-source "every executable skill file is executable in the staged copy (${#EXEC_FILES[@]} file(s))"
+
+  local first="${EXEC_FILES[0]}"
+  exec_bits_harness claude-code claude "$HOME/.claude/plugins" "$first"
+  exec_bits_harness gemini gemini "$HOME/.gemini/extensions" "$first"
+  exec_bits_harness codex codex "$HOME/.codex/plugins" "$first"
+  exec_bits_harness copilot copilot "$HOME/.copilot/installed-plugins" "$first"
+  exec_bits_harness droid droid "$HOME/.factory/plugins" "$first"
+  exec_bits_harness grok grok "$HOME/.grok/installed-plugins" "$first"
+  exec_bits_harness hermes hermes "$HOME/.hermes/plugins" "$first"
+
+  # kimi installs only through its TUI (see install-kimi note above), so no
+  # on-disk copy is produced by this offline run.
+  skip exec-bits-kimi "install is TUI-only"
+}
+
 # Drives the deep tier: resolve the plugin name and skill set, stage a
 # writable git-repo copy, and run each harness check. Called after the shallow
 # checks so both share the FAILED/exit-3 accounting.
@@ -618,6 +705,10 @@ deep_checks() {
   skip install-kimi "install is TUI-only; verified by hand via tmux (see comment above)"
   skip install-cursor "cursor-agent requires login before it will load a plugin"
   skip install-devin "no devin CLI exists in the image"
+
+  # Runs last: reuses the installs the per-harness deep checks above performed
+  # to assert executable skill scripts kept their mode bit end to end (#9).
+  deep_exec_bits
 }
 
 check_claude_code
