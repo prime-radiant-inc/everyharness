@@ -59,6 +59,32 @@ oneline() {
   printf '%s' "$1" | tr '\n' ' ' | cut -c1-300
 }
 
+# The marketplace name the deep-tier installs address a plugin by: claude/
+# codex/copilot install ids are `<plugin>@<marketplace-name>`, and that name is
+# the descriptor's own declared `.name` — which is now configurable
+# (marketplace.name), so it can no longer be assumed to be `<plugin>-dev`. Read
+# it from the emitted descriptor ($1), falling back to the local-dev default
+# ($2) when the file is absent or unparseable.
+market_name() {
+  local descriptor="$1" fallback="$2" name
+  name=$(jq -r '.name // empty' "$descriptor" 2>/dev/null)
+  if [ -n "$name" ]; then
+    printf '%s' "$name"
+  else
+    printf '%s' "$fallback"
+  fi
+}
+
+# True (0) only when the descriptor's first plugin entry declares the local
+# source `"./"`. Any other value — notably the object form ({source:url,url})
+# that a repository/http descriptor emits — is non-local and would make a real
+# install attempt a network clone, which the offline container forbids.
+market_source_is_local() {
+  local descriptor="$1" source
+  source=$(jq -r '.plugins[0].source' "$descriptor" 2>/dev/null)
+  [ "$source" = "./" ]
+}
+
 # True (0) only if EVERY one of the plugin's skills (SKILL_NAMES, set by
 # deep_checks) appears somewhere in the given output blob — used to assert a
 # harness enumerated the whole set after a real install.
@@ -236,6 +262,22 @@ check_manifest_harness() {
 # absent from PATH emits `skip`, never `not ok`, so the script stays runnable
 # on a dev host outside the container (which is how the unit tests exercise it).
 
+# claude-code and copilot install THROUGH the emitted .claude-plugin
+# descriptor; when its entry source isn't the local "./" (a repository/http
+# descriptor, whose source is an object), a real install would try to clone
+# that source, which the offline container can't reach. Emit a skip (never a
+# failure) and signal the caller to bail in that case. Other harnesses install
+# through their own descriptors (codex: .agents/plugins/marketplace.json, always
+# local) or a direct path, so they're unaffected.
+skip_if_nonlocal_source() {
+  local harness="$1"
+  if ! market_source_is_local "$PLUGIN_ROOT/.claude-plugin/marketplace.json"; then
+    skip "$harness" 'marketplace entry source is not local; offline install check needs source "./"'
+    return 0
+  fi
+  return 1
+}
+
 # --- install-claude-code: install from the emitted dev marketplace, then read
 # the component inventory the CLI itself reports.
 deep_claude_code() {
@@ -244,6 +286,7 @@ deep_claude_code() {
     skip "$harness" "claude not on PATH"
     return
   fi
+  skip_if_nonlocal_source "$harness" && return
   local out
   out=$(cd "$WORK" && claude plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         claude plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -280,7 +323,11 @@ deep_gemini() {
 
 # --- install-codex: `debug prompt-input` renders the model-visible prompt, so
 # a hit here proves the skill reaches the model rather than merely sitting on
-# disk.
+# disk. codex installs through the Agent Plugins descriptor (.agents/plugins/
+# marketplace.json), so its install id uses CODEX_MARKET (that descriptor's
+# name), not MARKET. That descriptor's entry source is always the local
+# `{source:url,url:"./"}` regardless of the marketplace.source config, so codex
+# is inherently offline-installable and takes no non-local-source skip.
 deep_codex() {
   local harness=install-codex
   if ! command -v codex >/dev/null 2>&1; then
@@ -289,7 +336,7 @@ deep_codex() {
   fi
   local out
   out=$(cd "$WORK" && codex plugin marketplace add "$WORK" >/dev/null 2>&1 &&
-        codex plugin add "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
+        codex plugin add "${PLUGIN_NAME}@${CODEX_MARKET}" >/dev/null 2>&1 &&
         codex debug prompt-input 2>&1)
   if all_skills_present "$out"; then
     ok "$harness" "every skill appears in codex's model-visible prompt"
@@ -305,6 +352,7 @@ deep_copilot() {
     skip "$harness" "copilot not on PATH"
     return
   fi
+  skip_if_nonlocal_source "$harness" && return
   local out
   out=$(cd "$WORK" && copilot plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         copilot plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -494,7 +542,18 @@ TS
 deep_checks() {
   PLUGIN_NAME=$(jq -r '.name // empty' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null)
   [ -n "$PLUGIN_NAME" ] || PLUGIN_NAME="$EH_PLUGIN_NAME"
-  MARKET="${PLUGIN_NAME}-dev"
+
+  # Install ids are `<plugin>@<marketplace-name>`, and the marketplace name is
+  # the descriptor's own declared `.name`, now configurable (marketplace.name)
+  # rather than always `<plugin>-dev`. claude-code and copilot install through
+  # Claude Code's `.claude-plugin/marketplace.json`; codex installs through the
+  # Agent Plugins spec descriptor `.agents/plugins/marketplace.json` (verified
+  # against the container's codex 0.146.0), whose name the marketplace.* config
+  # deliberately does NOT touch — so codex needs its own derivation from that
+  # file, not MARKET. Both fall back to `<plugin>-dev` when their descriptor is
+  # absent/unparseable.
+  MARKET=$(market_name "$PLUGIN_ROOT/.claude-plugin/marketplace.json" "${PLUGIN_NAME}-dev")
+  CODEX_MARKET=$(market_name "$PLUGIN_ROOT/.agents/plugins/marketplace.json" "${PLUGIN_NAME}-dev")
 
   # Skill names: every directory under the plugin's skills root that holds a
   # SKILL.md — the same skills/ tree every adapter emits its skills from.

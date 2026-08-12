@@ -29,6 +29,38 @@ npx everyharness test       # container-backed offline install checks (needs doc
 
 **Current status: generation works via 11 adapters covering 13 harnesses; `init` scaffolds, `import` converts Claude-format plugins, every generation emits install docs + a support matrix, and `everyharness test` runs offline manifest checks plus real per-harness install + skill-enumeration checks for all harnesses inside the shared container image (ghcr.io/prime-radiant-inc/everyharness-container). The superpowers dogfood test regenerates superpowers' hand-maintained manifests (4 of 8 byte-exact, 4 with one documented difference each).**
 
+## Configuration
+
+### `marketplace`
+
+The optional `marketplace` block shapes the Claude Code marketplace descriptor
+(`.claude-plugin/marketplace.json`) and the generated install doc. Every field
+is optional; omit the block entirely to get the local-dev defaults.
+
+```yaml
+marketplace:
+  name: my-plugin-market            # marketplace listing name; default <name>-dev
+  description: My plugin's channel  # default "Development marketplace for <name>"
+  source: local                     # local (default) | repository | an http(s) URL
+  strict: true                      # emitted on the plugin entry only when set
+  category: Developer Tools         # optional listing category
+  tags: [demo, fixture]             # optional listing keywords
+```
+
+- **`name`** — the marketplace's listing name. Install ids are
+  `<plugin>@<name>`. Default: `<name>-dev`.
+- **`description`** — the marketplace description. Default:
+  `Development marketplace for <name>`.
+- **`source`** — where the plugin entry is installed from. `local` (default)
+  emits `source: "./"` (the plugin lives in this repo). `repository` emits a
+  URL source pointing at the top-level `repository` field — so **`source:
+  repository` requires a top-level `repository`** and generation fails without
+  it. An explicit `http(s)://` URL is used verbatim as the URL source.
+- **`strict`** — emitted on the plugin entry only when set (`true` or `false`);
+  omitted otherwise.
+- **`category`** / **`tags`** — optional listing metadata (`tags` becomes the
+  entry's `keywords`).
+
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 
 ## License

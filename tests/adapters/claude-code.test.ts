@@ -37,7 +37,7 @@ describe('claude-code adapter', () => {
 
   it('emits a dev marketplace listing the plugin at source ./', () => {
     const marketplace = JSON.parse(byPath['.claude-plugin/marketplace.json'])
-    expect(marketplace.name).toBe('kitchen-sink-dev')
+    expect(marketplace.name).toBe('kitchen-sink-market')
     expect(marketplace.owner).toEqual({ name: 'Prime Radiant', email: 'dev@prime-radiant.example' })
     expect(marketplace.plugins).toEqual([
       {
@@ -132,7 +132,7 @@ describe('claude-code adapter installDoc', () => {
         '```',
         '',
         '```',
-        '/plugin install kitchen-sink@kitchen-sink-dev',
+        '/plugin install kitchen-sink@kitchen-sink-market',
         '```',
         '',
         "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",
@@ -176,6 +176,61 @@ describe('claude-code adapter installDoc', () => {
     const body = claudeCode.installDoc!(noBootstrapModel)
     expect(body).not.toContain('bootstrap hook')
     expect(body).not.toContain('## Caveats')
+  })
+})
+
+describe('claude-code adapter marketplace field handling', () => {
+  it('emits a publishable descriptor: name, description, repository source, strict, and the matching install line', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-marketplace-pub-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: proving-it-works',
+        'version: 1.0.0',
+        'description: proves marketplace fields work',
+        'repository: https://github.com/o/proving-it-works.git',
+        'marketplace:',
+        '  name: proving-it-works',
+        '  description: Real desc',
+        '  source: repository',
+        '  strict: false',
+      ].join('\n'),
+    )
+    const pubModel = buildModel(dir)
+    const marketplace = JSON.parse(
+      claudeCode.emit(pubModel).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.name).toBe('proving-it-works')
+    expect(marketplace.description).toBe('Real desc')
+    expect(marketplace.plugins[0].source).toEqual({ source: 'url', url: 'https://github.com/o/proving-it-works.git' })
+    expect(marketplace.plugins[0].strict).toBe(false)
+    expect(claudeCode.installDoc!(pubModel)).toContain('/plugin install proving-it-works@proving-it-works')
+  })
+
+  it('maps an explicit http(s) URL marketplace.source to the same url source shape', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-marketplace-url-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: url-source',
+        'version: 1.0.0',
+        'description: explicit url source fixture',
+        'marketplace:',
+        '  source: https://example.com/repo.git',
+      ].join('\n'),
+    )
+    const urlModel = buildModel(dir)
+    const marketplace = JSON.parse(
+      claudeCode.emit(urlModel).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.plugins[0].source).toEqual({ source: 'url', url: 'https://example.com/repo.git' })
+  })
+
+  it('omits the strict key by default (no marketplace.strict set)', () => {
+    const marketplace = JSON.parse(
+      claudeCode.emit(model).files.find((f) => f.path === '.claude-plugin/marketplace.json')!.content,
+    )
+    expect(marketplace.plugins[0]).not.toHaveProperty('strict')
   })
 })
 

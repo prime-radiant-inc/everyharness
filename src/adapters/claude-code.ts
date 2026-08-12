@@ -1,10 +1,11 @@
 import { deepMerge } from '../fileset.js'
 import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
+import type { EveryharnessConfig } from '../config.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json, githubOwnerRepo } from './shared.js'
+import { baseManifestFields, json, githubOwnerRepo, marketplaceName } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -63,20 +64,32 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 
+// Marketplace plugin entry `source`: 'local' (or absent) keeps the local-dev
+// path './'; 'repository' resolves to the top-level `repository` URL (Task 1's
+// loadConfig rejects `source: repository` unless `repository` is set, so it's
+// always present here); an explicit http(s) URL string is used as-is. Both
+// non-local forms use Claude Code's `{ source: 'url', url }` shape.
+function marketplaceSource(config: EveryharnessConfig): unknown {
+  const source = config.marketplace?.source
+  if (source === undefined || source === 'local') return './'
+  return { source: 'url', url: source === 'repository' ? config.repository : source }
+}
+
 function marketplaceManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
   const entry: Record<string, unknown> = {
     name: config.name,
     description: config.description,
     version: config.version,
-    source: './',
+    source: marketplaceSource(config),
   }
   if (config.author) entry.author = config.author
   if (config.marketplace?.category) entry.category = config.marketplace.category
   if (config.marketplace?.tags) entry.keywords = config.marketplace.tags
+  if (config.marketplace?.strict !== undefined) entry.strict = config.marketplace.strict
   const marketplace: Record<string, unknown> = {
-    name: `${config.name}-dev`,
-    description: `Development marketplace for ${config.name}`,
+    name: marketplaceName(config),
+    description: config.marketplace?.description ?? `Development marketplace for ${config.name}`,
     plugins: [entry],
   }
   if (config.author) marketplace.owner = config.author
@@ -84,9 +97,11 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
 }
 
 // Ground truth per Design decision 4: `claude /plugin marketplace add REPO`
-// then `/plugin install <name>@<name>-dev`, with REPO substituted from
+// then `/plugin install <name>@<marketplace-name>`, with REPO substituted from
 // config.repository when it's a github.com URL and a `<your-repo>`
-// placeholder otherwise (never a fabricated marketplace listing).
+// placeholder otherwise (never a fabricated marketplace listing), and
+// marketplace-name resolved by marketplaceName() — config.marketplace.name
+// when set, otherwise the local-dev default `<name>-dev`.
 function installDoc(model: PluginModel): string {
   const { config } = model
   const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
@@ -113,7 +128,7 @@ function installDoc(model: PluginModel): string {
     '```',
     '',
     '```',
-    `/plugin install ${config.name}@${config.name}-dev`,
+    `/plugin install ${config.name}@${marketplaceName(config)}`,
     '```',
     '',
     "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",

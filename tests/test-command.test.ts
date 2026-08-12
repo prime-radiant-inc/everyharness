@@ -228,6 +228,57 @@ describe('checks/run-checks.sh', () => {
     expect(result.stdout.trim()).toBe('300')
   })
 
+  // Sources the real market_name() out of the script (not a copy) and runs it
+  // against a descriptor with a custom name — the deep tier's install ids are
+  // <plugin>@<marketplace-name>, and that name is now configurable, so the
+  // derivation must read the emitted descriptor rather than assume `-dev`.
+  it('market_name() reads the descriptor .name, falling back to the passed default when absent', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-market-name-'))
+    mkdirSync(join(dir, '.claude-plugin'))
+    const descriptor = join(dir, '.claude-plugin', 'marketplace.json')
+    writeFileSync(descriptor, JSON.stringify({ name: 'custom-market', plugins: [{ source: './' }] }))
+
+    const derive = (path: string) =>
+      spawnSync(
+        'bash',
+        ['-c', `source <(sed -n "/^market_name()/,/^}/p" "${CHECKS_SCRIPT}"); market_name "${path}" "fallback-dev"`],
+        { encoding: 'utf8' },
+      )
+
+    const withName = derive(descriptor)
+    expect(withName.status).toBe(0)
+    expect(withName.stdout).toBe('custom-market')
+
+    const missing = derive(join(dir, 'does-not-exist.json'))
+    expect(missing.status).toBe(0)
+    expect(missing.stdout).toBe('fallback-dev')
+  })
+
+  // Sources the real market_source_is_local() out of the script. A local `./`
+  // entry source means an offline install can proceed; any other form (an
+  // object source for a repository/http descriptor) would make the install
+  // attempt a network clone, so the claude/codex/copilot checks must skip.
+  it('market_source_is_local() is true for source "./" and false for an object (repository) source', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-market-src-'))
+    const localFile = join(dir, 'local.json')
+    const repoFile = join(dir, 'repo.json')
+    writeFileSync(localFile, JSON.stringify({ plugins: [{ source: './' }] }))
+    writeFileSync(repoFile, JSON.stringify({ plugins: [{ source: { source: 'url', url: 'https://x/y' } }] }))
+
+    const probe = (path: string) =>
+      spawnSync(
+        'bash',
+        [
+          '-c',
+          `source <(sed -n "/^market_source_is_local()/,/^}/p" "${CHECKS_SCRIPT}"); market_source_is_local "${path}" && echo local || echo nonlocal`,
+        ],
+        { encoding: 'utf8' },
+      )
+
+    expect(probe(localFile).stdout.trim()).toBe('local')
+    expect(probe(repoFile).stdout.trim()).toBe('nonlocal')
+  })
+
   // Runs the script directly (no container) against a generated kitchen-sink
   // copy, exercising the manifest-harness jq logic (and every other shallow
   // check that only needs bash/jq/node/python3) end to end. PATH is narrowed

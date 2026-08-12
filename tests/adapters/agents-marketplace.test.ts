@@ -121,6 +121,41 @@ describe('agents-marketplace adapter installDoc', () => {
     expect(doc).toContain('grok plugin install')
   })
 
+  it('copilot install id uses the configured marketplace.name, not the -dev default', () => {
+    // Copilot resolves plugins through Claude Code's .claude-plugin/marketplace.json
+    // (verified: GitHub Copilot CLI 1.0.78 registers exactly that descriptor's
+    // declared name), so its install id must track marketplace.name — the same
+    // name the claude-code adapter writes into that descriptor — not the
+    // .agents/plugins/marketplace.json descriptor this adapter emits (always -dev).
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-market-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      [
+        'name: demo',
+        'version: 1.0.0',
+        'description: custom marketplace name fixture',
+        'repository: https://github.com/obra/demo',
+        'marketplace:',
+        '  name: demo-market',
+      ].join('\n'),
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    expect(doc).toContain('copilot plugin install demo@demo-market')
+    expect(doc).not.toContain('copilot plugin install demo@demo-dev')
+  })
+
+  it('copilot install id falls back to <name>-dev when marketplace.name is unset', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-defaultmarket-'))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: demo\nversion: 1.0.0\ndescription: default marketplace name fixture\n',
+    )
+    const testModel = buildModel(dir)
+    const doc = agentsMarketplace.installDoc!(testModel)
+    expect(doc).toContain('copilot plugin install demo@demo-dev')
+  })
+
   it('falls back to <your-repo> when config.repository is absent', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-installdoc-norepo-'))
     writeFileSync(

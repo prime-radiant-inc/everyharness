@@ -2,15 +2,25 @@ import { deepMerge } from '../fileset.js'
 import type { GeneratedFile } from '../fileset.js'
 import type { PluginModel } from '../model.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
-import { json } from './shared.js'
+import { json, marketplaceName } from './shared.js'
 
-// Droid, Grok, and Copilot install the Claude-style layout through this
-// descriptor, so their real support profile equals claude-code's — the
-// all-'none' support row below reflects only what THIS adapter emits (matrix
-// docs clarifying this land in Plan 4). The agents-marketplace descriptor is
-// a distribution-only file that declares this plugin as installable on
-// Anthropic's agents marketplace. No components are emitted; the descriptor is
-// read by install tooling to set up the .agents/plugins/ layout.
+// Droid and Grok install the Claude-style layout through this descriptor, so
+// their real support profile equals claude-code's — the all-'none' support row
+// below reflects only what THIS adapter emits (matrix docs clarifying this land
+// in Plan 4). The agents-marketplace descriptor is a distribution-only file
+// that declares this plugin as installable on Anthropic's agents marketplace.
+// No components are emitted; the descriptor is read by install tooling to set
+// up the .agents/plugins/ layout.
+//
+// Copilot is different: CONFIRMED (2026-08-12, empirical, GitHub Copilot CLI
+// 1.0.78 in the everyharness container) that `copilot plugin marketplace add`
+// reads ONLY Claude Code's marketplace descriptor — it searches marketplace.json,
+// .plugin/marketplace.json, .github/plugin/marketplace.json, and
+// .claude-plugin/marketplace.json, and never looks at .agents/plugins/. So
+// Copilot registers the marketplace under the name declared in
+// .claude-plugin/marketplace.json (i.e. marketplaceName()), NOT this
+// descriptor's `-dev` name, and its effective support still equals claude-code's
+// because that is the layout it actually installs.
 
 function marketplaceDescriptor(model: PluginModel): Record<string, unknown> {
   const { config } = model
@@ -39,7 +49,14 @@ function marketplaceDescriptor(model: PluginModel): Record<string, unknown> {
 // Ground truth per Design decision 4: droid names marketplaces by their source
 // (repo/directory basename), not the descriptor's declared name. So:
 // - droid: `droid plugin install <name>@<repo-basename>` (droid derives name from source)
-// - copilot: `copilot plugin install <name>@<name>-dev` (copilot honors declared name)
+// - copilot: `copilot plugin install <name>@<marketplace-name>`, where
+//   <marketplace-name> is marketplaceName() — the name from
+//   .claude-plugin/marketplace.json, the ONLY descriptor Copilot reads (see the
+//   file header). It is NOT this adapter's `.agents/plugins/marketplace.json`
+//   name (always `-dev`). Edge: if the claude-code adapter is excluded, no
+//   .claude-plugin/marketplace.json is emitted and `copilot plugin marketplace
+//   add` fails outright (verified) — Copilot has no path through this descriptor,
+//   so this line assumes claude-code is present, as it is by default.
 // - grok: `grok plugin install <url> --trust` (grok takes a URL/path directly, no marketplace)
 function installDoc(model: PluginModel): string {
   const { config } = model
@@ -68,7 +85,7 @@ function installDoc(model: PluginModel): string {
     '',
     '```',
     `copilot plugin marketplace add ${url}`,
-    `copilot plugin install ${config.name}@${config.name}-dev`,
+    `copilot plugin install ${config.name}@${marketplaceName(config)}`,
     '```',
     '',
     'On Grok:',
@@ -77,7 +94,7 @@ function installDoc(model: PluginModel): string {
     `grok plugin install ${url} --trust`,
     '```',
     '',
-    "All three clients install the plugin's real claude-code-style layout (skills/, commands/, agents/, hooks/, .mcp.json) that this descriptor points at — their effective support matches claude-code's, not the all-`none` row this adapter reports in the support matrix (which reflects only the descriptor file itself, not what those clients receive through it). Consult each client's docs if these commands don't match your installed version.",
+    "All three clients install the plugin's real claude-code-style layout (skills/, commands/, agents/, hooks/, .mcp.json) — their effective support matches claude-code's, not the all-`none` row this adapter reports in the support matrix (which reflects only the descriptor file itself, not what those clients receive through it). Droid and Grok read the descriptor this adapter emits (`.agents/plugins/marketplace.json`); Copilot instead reads Claude Code's `.claude-plugin/marketplace.json`, so its install id above uses that marketplace's name and it needs the claude-code adapter enabled. Consult each client's docs if these commands don't match your installed version.",
   ]
   return lines.join('\n')
 }

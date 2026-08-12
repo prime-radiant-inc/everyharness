@@ -25,6 +25,19 @@ export function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n'
 }
 
+// The marketplace listing name an install id addresses the plugin by:
+// `config.marketplace.name` when set, otherwise the local-dev default
+// `<name>-dev`. Shared so every place that must agree on this name stays in
+// lockstep: the claude-code adapter writes it into
+// `.claude-plugin/marketplace.json` and its install doc, and the
+// agents-marketplace adapter's copilot install line reuses it — because
+// Copilot resolves plugins through that same `.claude-plugin/marketplace.json`
+// (see agents-marketplace.ts), so a copilot install id keyed on anything else
+// would not resolve.
+export function marketplaceName(config: EveryharnessConfig): string {
+  return config.marketplace?.name ?? `${config.name}-dev`
+}
+
 const GITHUB_REPO_URL = /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/
 
 // Extracts "owner/repo" from config.repository when it's a github.com URL —
