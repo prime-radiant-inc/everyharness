@@ -15,5 +15,6 @@ harnesses:
       homepage: https://example.com/kitchen-sink
 
 marketplace:
+  name: kitchen-sink-market
   category: Developer Tools
   tags: [demo, fixture]

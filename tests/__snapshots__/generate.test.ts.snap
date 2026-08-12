@@ -25,7 +25,7 @@ exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`
 
 === .claude-plugin/marketplace.json ===
 {
-  "name": "kitchen-sink-dev",
+  "name": "kitchen-sink-market",
   "description": "Development marketplace for kitchen-sink",
   "plugins": [
     {
@@ -535,7 +535,7 @@ claude /plugin marketplace add prime-radiant-inc/everyharness
 \`\`\`
 
 \`\`\`
-/plugin install kitchen-sink@kitchen-sink-dev
+/plugin install kitchen-sink@kitchen-sink-market
 \`\`\`
 
 If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.

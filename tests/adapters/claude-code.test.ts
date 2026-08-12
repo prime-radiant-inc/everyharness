@@ -37,7 +37,7 @@ describe('claude-code adapter', () => {
 
   it('emits a dev marketplace listing the plugin at source ./', () => {
     const marketplace = JSON.parse(byPath['.claude-plugin/marketplace.json'])
-    expect(marketplace.name).toBe('kitchen-sink-dev')
+    expect(marketplace.name).toBe('kitchen-sink-market')
     expect(marketplace.owner).toEqual({ name: 'Prime Radiant', email: 'dev@prime-radiant.example' })
     expect(marketplace.plugins).toEqual([
       {
@@ -132,7 +132,7 @@ describe('claude-code adapter installDoc', () => {
         '```',
         '',
         '```',
-        '/plugin install kitchen-sink@kitchen-sink-dev',
+        '/plugin install kitchen-sink@kitchen-sink-market',
         '```',
         '',
         "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",
