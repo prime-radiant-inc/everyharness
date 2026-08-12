@@ -12,7 +12,7 @@ function mcpFixtureModel(mcpServers: Record<string, unknown>) {
   const dir = mkdtempSync(join(tmpdir(), 'eh-ap-mcp-'))
   writeFileSync(
     join(dir, 'everyharness.yaml'),
-    'name: mcp-fixture\nversion: 1.0.0\ndescription: mcp translation fixture\nbootstrap:\n  none: true\n',
+    'name: mcp-fixture\nversion: 1.0.0\ndescription: mcp translation fixture\nbootstrap: none\n',
   )
   writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ mcpServers }))
   return buildModel(dir)
@@ -117,7 +117,7 @@ describe('agent-plugins-1.0 name gate', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-name-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: bad--name\nversion: 1.0.0\ndescription: name gate fixture\nbootstrap:\n  none: true\n',
+      'name: bad--name\nversion: 1.0.0\ndescription: name gate fixture\nbootstrap: none\n',
     )
     const badModel = buildModel(dir)
     const result = agentPlugins.emit(badModel)
@@ -133,7 +133,7 @@ describe('agent-plugins-1.0 without an mcp source', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-no-mcp-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-mcp\nversion: 1.0.0\ndescription: no mcp fixture\nbootstrap:\n  none: true\n',
+      'name: no-mcp\nversion: 1.0.0\ndescription: no mcp fixture\nbootstrap: none\n',
     )
     const noMcpModel = buildModel(dir)
     const result = agentPlugins.emit(noMcpModel)
@@ -146,7 +146,7 @@ describe('agent-plugins-1.0 with malformed mcpServers', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-badmcp-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: bad-mcp-shape\nversion: 1.0.0\ndescription: malformed mcpServers fixture\nbootstrap:\n  none: true\n',
+      'name: bad-mcp-shape\nversion: 1.0.0\ndescription: malformed mcpServers fixture\nbootstrap: none\n',
     )
     writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ servers: {} }))
     const badMcpModel = buildModel(dir)
@@ -161,7 +161,7 @@ describe('agent-plugins-1.0 with a non-default skills path', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-skills-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: custom-skills\nversion: 1.0.0\ndescription: custom skills path fixture\ncomponents:\n  skills: my-skills\nbootstrap:\n  none: true\n',
+      'name: custom-skills\nversion: 1.0.0\ndescription: custom skills path fixture\ncomponents:\n  skills: my-skills\nbootstrap: none\n',
     )
     const customModel = buildModel(dir)
     const result = agentPlugins.emit(customModel)
@@ -176,7 +176,7 @@ describe('agent-plugins-1.0 mcp.json collision with the source MCP config', () =
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-mcp-collision-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: mcp-collision\nversion: 1.0.0\ndescription: mcp.json collision fixture\ncomponents:\n  mcp: mcp.json\nbootstrap:\n  none: true\n',
+      'name: mcp-collision\nversion: 1.0.0\ndescription: mcp.json collision fixture\ncomponents:\n  mcp: mcp.json\nbootstrap: none\n',
     )
     writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
     const collisionModel = buildModel(dir)
@@ -189,7 +189,7 @@ describe('agent-plugins-1.0 mcp.json collision with the source MCP config', () =
   })
 })
 
-describe('agent-plugins-1.0 with harnesses.overrides[agent-plugins-1.0].extensions', () => {
+describe('agent-plugins-1.0 with harnesses[agent-plugins-1.0].manifest.extensions', () => {
   it('copies only object-valued extension entries and warns about the rest', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-ap-ext-'))
     writeFileSync(
@@ -198,11 +198,10 @@ describe('agent-plugins-1.0 with harnesses.overrides[agent-plugins-1.0].extensio
         'name: ext-demo',
         'version: 1.0.0',
         'description: extensions override fixture',
-        'bootstrap:',
-        '  none: true',
+        'bootstrap: none',
         'harnesses:',
-        '  overrides:',
-        '    agent-plugins-1.0:',
+        '  agent-plugins-1.0:',
+        '    manifest:',
         '      extensions:',
         '        com.example.demo:',
         '          enabled: true',

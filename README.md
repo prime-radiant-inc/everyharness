@@ -23,7 +23,7 @@ npx everyharness generate   # emit per-harness files from everyharness.yaml
 npx everyharness validate   # drift + schema checks (exit 3 = drift, 2 = schema)
 npx everyharness matrix     # component-support matrix
 npx everyharness test       # container-backed offline install checks (needs docker; exit 2 = failed checks)
-npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --check / --audit)
+npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --check / --audit; reads release:)
 ```
 
 `everyharness test` runs two offline tiers inside the container: first it parses every generated harness manifest and confirms referenced paths exist, then it performs a **real install** of the plugin into each harness CLI (claude, codex, gemini, opencode, grok, droid, hermes, copilot, pi) and asserts the CLI actually enumerates the plugin's skills — the check that catches a manifest that parses but is wired to the wrong place. Harnesses with no offline enumeration path (kimi, cursor, devin) are reported as `skip`. It pulls ghcr.io/prime-radiant-inc/everyharness-container on first use (large image, ~15GB, linux/amd64) — prefetch with `docker pull` if you want progress control.
@@ -32,45 +32,76 @@ npx everyharness bump 1.2.3 # set the version everywhere + regenerate (also --ch
 
 ## Configuration
 
+`everyharness.yaml` has four sections, and each has one job: the top-level
+keys describe the plugin; `harnesses.<name>` holds per-harness behavior and
+manifest patches; `marketplace` is the distribution descriptor; `release` is
+version-bump bookkeeping.
+
 ### `bootstrap`
 
-The optional `bootstrap` block wires a plugin's discovery skill (or a
-generated equivalent) into every harness. Exactly one of `skill` / `generate`
-/ `none` must be set.
+The optional `bootstrap` key wires a plugin's discovery skill (or a generated
+equivalent) into every harness. It's a tagged value — exactly one of three
+forms:
 
 ```yaml
-bootstrap:
-  skill: using-my-plugin   # exactly one of skill / generate / none
-  emitHooks: false         # optional; default true. boolean or per-harness map
+bootstrap: generate                       # synthesize a bootstrap file from the plugin's skill list
+# bootstrap: none                         # skip bootstrap wiring entirely (same as omitting the key)
+# bootstrap: { skill: using-my-plugin }   # point at a hand-written skill; object form only when a parameter is needed
 ```
 
-- **`skill`** — the name of a skill (under `components.skills`) invoked as
-  the bootstrap; generation fails if the skill doesn't exist.
-- **`generate`** — `true` to have everyharness synthesize a bootstrap file
+- **`generate`** — string literal. everyharness synthesizes a bootstrap file
   from the plugin's skill list instead of pointing at a hand-written skill.
-- **`none`** — `true` to skip bootstrap wiring entirely. `emitHooks` is not
-  valid alongside `none`.
-- **`emitHooks`** — whether claude-code and cursor (the harnesses with a
-  shell-hook tier) emit their own generated SessionStart hook and merged
-  `hooks.json` / `hooks-cursor.json` pointer. Set it when a plugin
-  hand-crafts its own hooks for one or more harnesses and wants
-  everyharness to leave that harness's hooks wiring alone. Two forms:
-  - a boolean applies to every hook-emitting harness (`claude-code`,
-    `cursor`) — `emitHooks: false` keeps both harnesses on their
-    hand-written hooks.
-  - a per-harness map applies only to the named harnesses; any
-    hook-emitting harness left out of the map keeps the default:
-    ```yaml
-    bootstrap:
-      skill: using-my-plugin
-      emitHooks:
-        claude-code: false   # claude-code keeps its own hand-written hooks
-                              # cursor is untouched — it still gets the generated hook
-    ```
-    An unrecognized harness key is a config error naming the key and the
-    valid set.
+- **`none`** — string literal, same as omitting `bootstrap` entirely. Skips
+  bootstrap wiring.
+- **`{ skill: <name> }`** — object form. `<name>` is a skill (under
+  `components.skills`) invoked as the bootstrap; generation fails if the
+  skill doesn't exist.
 
-  Default: `true` for every hook-emitting harness.
+Whether claude-code and cursor (the harnesses with a shell-hook tier) emit
+their own generated SessionStart hook and merged `hooks.json` /
+`hooks-cursor.json` pointer is controlled per-harness under `harnesses.<name>.hooks`,
+not here — see below.
+
+### `harnesses`
+
+The `harnesses` block holds everything harness-specific: which harnesses to
+skip, whether a harness emits its own hooks instead of the generated ones,
+and per-harness patches to that harness's generated manifest.
+
+```yaml
+harnesses:
+  exclude: [devin]              # skip these harnesses entirely
+  claude-code:
+    hooks: own                  # 'generated' (default) | 'own'
+    manifest:
+      repository: null          # null deletes the inherited field
+  kimi:
+    manifest:
+      displayName: Kimi Code
+```
+
+- **`exclude`** — harness names to skip generation for entirely.
+- **`<name>.hooks`** — `generated` (default) or `own`. Set `own` when a
+  plugin hand-crafts its own hooks for this harness and wants everyharness to
+  leave that harness's hooks wiring alone: everyharness emits no hook files
+  and forces no manifest hooks pointer for it. Only valid on hook-emitting
+  harnesses (`claude-code`, `cursor`), and only when `bootstrap` is
+  `generate` or `{ skill: ... }` — under `bootstrap: none` there are no
+  generated hooks to suppress, so it's a config error.
+- **`<name>.manifest`** — patches deep-merged into that harness's generated
+  manifest, on top of the top-level config fields. Arrays and scalars are
+  replaced wholesale; objects are merged recursively. A literal `null` at any
+  nesting depth is always a **delete sentinel** that removes the inherited
+  field — essential when a field is required for some harnesses but must be
+  absent in others (e.g. kimi's plugin.json format doesn't include
+  `repository`, while claude-code's does). Because of this, a literal `null`
+  value can't be set through `manifest` at all; emit it via an adapter's
+  custom field logic instead. (Arrays are replaced wholesale, so a `null`
+  entry inside an array passes through unaffected.)
+
+Any key under `harnesses:` other than `exclude` must be a known adapter name
+(the registry in `src/adapters/index.ts`) — an unrecognized name is a config
+error naming the key and the valid set.
 
 ### `marketplace`
 
@@ -104,34 +135,19 @@ marketplace:
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 
-### `harnesses.overrides`
+### `release`
 
-Per-harness overrides allow you to customize specific fields in a harness's generated manifest without affecting others. Overrides are deep-merged with the top-level config fields — arrays and scalars are replaced wholesale, objects are merged recursively.
-
-```yaml
-harnesses:
-  overrides:
-    kimi:
-      displayName: Kimi Code
-      repository: null         # special: null deletes the inherited field
-```
-
-In the example above, `repository: null` uses the **delete sentinel** to remove the inherited `repository` field from the kimi manifest — essential when a field is required for some harnesses but must be absent in others (e.g., kimi's plugin.json format doesn't include `repository`, while claude-code's does).
-
-Note: A literal `null` cannot be set as an object field's value via overrides, at any nesting depth; `null` is always treated as a delete sentinel. If you need a null value in the generated manifest, emit it via an adapter's custom field logic instead. (Arrays are replaced wholesale, so a `null` entry inside an array passes through unaffected.)
-
-### `bump`
-
-`everyharness bump` sets the plugin version in one place and propagates it —
-the replacement for per-repo bump scripts like superpowers'
+The CLI command is still `everyharness bump`; it reads the `release:` block.
+`bump` sets the plugin version in one place and propagates it — the
+replacement for per-repo bump scripts like superpowers'
 `scripts/bump-version.sh`. Because `everyharness.yaml` is the version source of
 truth and `generate` rebuilds every harness manifest from it, you never list
 those generated files here: bump rewrites `everyharness.yaml`, then regenerates.
-The `bump` block only names the extra, *non-generated* files that also carry the
-version.
+The `release` block only names the extra, *non-generated* files that also carry
+the version.
 
 ```yaml
-bump:
+release:
   files:
     - { path: release.json, field: version }   # a version-bearing file everyharness does not generate
       # note: package.json is usually generated (by the opencode/pi adapters) — declaring

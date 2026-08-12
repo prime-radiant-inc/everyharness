@@ -120,7 +120,7 @@ describe('gemini adapter', () => {
   })
 })
 
-describe('gemini adapter with harnesses.overrides.gemini', () => {
+describe('gemini adapter with harnesses.gemini.manifest', () => {
   it('deep-merges override fields into gemini-extension.json', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-gemini-override-'))
     writeFileSync(
@@ -130,8 +130,8 @@ describe('gemini adapter with harnesses.overrides.gemini', () => {
         'version: 1.0.0',
         'description: override fixture for gemini extension metadata',
         'harnesses:',
-        '  overrides:',
-        '    gemini:',
+        '  gemini:',
+        '    manifest:',
         '      contextFileName: CUSTOM.md',
       ].join('\n'),
     )
@@ -150,8 +150,8 @@ describe('gemini adapter with harnesses.overrides.gemini', () => {
         'version: 1.0.0',
         'description: override fixture for gemini extension metadata',
         'harnesses:',
-        '  overrides:',
-        '    gemini:',
+        '  gemini:',
+        '    manifest:',
         '      contextFileName: CUSTOM.md',
       ].join('\n'),
     )
@@ -168,7 +168,7 @@ describe('gemini adapter without a bootstrap skill', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-gemini-none-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-bootstrap\nversion: 1.0.0\ndescription: no bootstrap fixture\nbootstrap:\n  none: true\n',
+      'name: no-bootstrap\nversion: 1.0.0\ndescription: no bootstrap fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'skills', 'demo'), { recursive: true })
     writeFileSync(
@@ -188,7 +188,7 @@ describe('gemini adapter with bootstrap.generate', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-gemini-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap: generate\n',
     )
     const generateModel = buildModel(dir)
     const result = gemini.emit(generateModel)
@@ -204,7 +204,7 @@ describe('gemini adapter with bootstrap.generate', () => {
 describe('gemini TOML command translation: positional arguments', () => {
   it.skipIf(!TOMLLIB_AVAILABLE)('warns and still emits the command, leaving $1 verbatim and swapping $ARGUMENTS', () => {
     const dir = tmpFixture(
-      'name: positional-demo\nversion: 1.0.0\ndescription: positional-args fixture\nbootstrap:\n  none: true\n',
+      'name: positional-demo\nversion: 1.0.0\ndescription: positional-args fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'commands'), { recursive: true })
     writeFileSync(
@@ -226,7 +226,7 @@ describe('gemini TOML command translation: positional arguments', () => {
 describe('gemini TOML command translation: description escaping', () => {
   it.skipIf(!TOMLLIB_AVAILABLE)('escapes backslash and double-quote in the description and round-trips through tomllib', () => {
     const dir = tmpFixture(
-      'name: escape-demo\nversion: 1.0.0\ndescription: description-escaping fixture\nbootstrap:\n  none: true\n',
+      'name: escape-demo\nversion: 1.0.0\ndescription: description-escaping fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'commands'), { recursive: true })
     writeFileSync(
@@ -245,7 +245,7 @@ describe('gemini TOML command translation: description escaping', () => {
 describe('gemini TOML command translation: embedded triple quotes', () => {
   it.skipIf(!TOMLLIB_AVAILABLE)('warns, escapes the triple quotes, and still parses as valid TOML round-tripping the original body', () => {
     const dir = tmpFixture(
-      'name: triple-demo\nversion: 1.0.0\ndescription: triple-quote fixture\nbootstrap:\n  none: true\n',
+      'name: triple-demo\nversion: 1.0.0\ndescription: triple-quote fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'commands'), { recursive: true })
     writeFileSync(
@@ -265,7 +265,7 @@ describe('gemini TOML command translation: embedded triple quotes', () => {
 describe('gemini TOML command translation: backslash escaping in body', () => {
   it.skipIf(!TOMLLIB_AVAILABLE)('escapes backslashes in the body and round-trips through tomllib to the original body', () => {
     const dir = tmpFixture(
-      'name: backslash-demo\nversion: 1.0.0\ndescription: backslash-body fixture\nbootstrap:\n  none: true\n',
+      'name: backslash-demo\nversion: 1.0.0\ndescription: backslash-body fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'commands'), { recursive: true })
     const originalBody = "Run grep '\\d+' and C:\\path please.\n"
@@ -284,7 +284,7 @@ describe('gemini TOML command translation: backslash escaping in body', () => {
 
 describe('gemini TOML command translation: bootstrap-mode independence', () => {
   it('still emits commands/*.toml under bootstrap.generate and bootstrap: none', () => {
-    for (const bootstrapYaml of ['bootstrap:\n  generate: true\n', 'bootstrap:\n  none: true\n']) {
+    for (const bootstrapYaml of ['bootstrap: generate\n', 'bootstrap: none\n']) {
       const dir = tmpFixture(`name: mode-demo\nversion: 1.0.0\ndescription: bootstrap-mode fixture\n${bootstrapYaml}`)
       mkdirSync(join(dir, 'commands'), { recursive: true })
       writeFileSync(join(dir, 'commands', 'ping.md'), '---\ndescription: Ping\n---\n\nPing $ARGUMENTS.\n')
@@ -300,7 +300,7 @@ describe('gemini TOML command translation: bootstrap-mode independence', () => {
 describe('gemini TOML command translation: word-boundary preservation', () => {
   it.skipIf(!TOMLLIB_AVAILABLE)('replaces standalone $ARGUMENTS but preserves $ARGUMENTSX (longer token)', () => {
     const dir = tmpFixture(
-      'name: word-boundary-demo\nversion: 1.0.0\ndescription: word-boundary fixture\nbootstrap:\n  none: true\n',
+      'name: word-boundary-demo\nversion: 1.0.0\ndescription: word-boundary fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'commands'), { recursive: true })
     writeFileSync(

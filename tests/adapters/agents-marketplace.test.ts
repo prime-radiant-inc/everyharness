@@ -74,8 +74,8 @@ describe('agents-marketplace adapter without category', () => {
   })
 })
 
-describe('agents-marketplace adapter with harnesses.overrides.agents-marketplace', () => {
-  it('deep-merges interface.displayName from the override into marketplace.json', () => {
+describe('agents-marketplace adapter with harnesses.agents-marketplace.manifest', () => {
+  it('deep-merges interface.displayName from the manifest patch into marketplace.json', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-agents-marketplace-override-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -84,8 +84,8 @@ describe('agents-marketplace adapter with harnesses.overrides.agents-marketplace
         'version: 1.0.0',
         'description: override fixture for agents-marketplace interface.displayName',
         'harnesses:',
-        '  overrides:',
-        '    agents-marketplace:',
+        '  agents-marketplace:',
+        '    manifest:',
         '      interface:',
         '        displayName: Custom Display',
       ].join('\n'),

@@ -58,8 +58,8 @@ describe('kimi adapter', () => {
   })
 })
 
-describe('kimi adapter with harnesses.overrides.kimi', () => {
-  it('deep-merges plugin-specific skillInstructions from the override into plugin.json', () => {
+describe('kimi adapter with harnesses.kimi.manifest', () => {
+  it('deep-merges plugin-specific skillInstructions from the manifest patch into plugin.json', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-override-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -68,8 +68,8 @@ describe('kimi adapter with harnesses.overrides.kimi', () => {
         'version: 1.0.0',
         'description: override fixture for kimi skillInstructions metadata',
         'harnesses:',
-        '  overrides:',
-        '    kimi:',
+        '  kimi:',
+        '    manifest:',
         '      skillInstructions: map things',
       ].join('\n'),
     )
@@ -85,7 +85,7 @@ describe('kimi adapter with bootstrap.none', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-none-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-bootstrap\nversion: 1.0.0\ndescription: bootstrap none fixture\nbootstrap:\n  none: true\n',
+      'name: no-bootstrap\nversion: 1.0.0\ndescription: bootstrap none fixture\nbootstrap: none\n',
     )
     const noneModel = buildModel(dir)
     const result = kimi.emit(noneModel)
@@ -100,7 +100,7 @@ describe('kimi adapter with bootstrap.generate', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-kimi-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap: generate\n',
     )
     const generateModel = buildModel(dir)
     const result = kimi.emit(generateModel)

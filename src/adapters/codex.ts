@@ -11,7 +11,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   // Codex's loader auto-registers hooks/hooks.json unless the manifest holds
   // a literal empty object here — this avoids duplicate trust prompts.
   manifest.hooks = {}
-  const override = config.harnesses.overrides.codex
+  const override = config.harnesses.settings.codex?.manifest
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 

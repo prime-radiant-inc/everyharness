@@ -48,7 +48,7 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   if (config.bootstrap.kind === 'skill') {
     manifest.sessionStart = { skill: config.bootstrap.skill }
   }
-  const override = config.harnesses.overrides.kimi
+  const override = config.harnesses.settings.kimi?.manifest
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 

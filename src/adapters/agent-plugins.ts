@@ -15,8 +15,8 @@ import { baseManifestFields, json } from './shared.js'
 // communicated via the warning instead.
 //
 // plugin.json's schema is CLOSED (additionalProperties: false), unlike the
-// other adapters' manifests. A general deepMerge of the full override
-// object would let harnesses.overrides['agent-plugins-1.0'] inject
+// other adapters' manifests. A general deepMerge of the full manifest
+// patch would let harnesses['agent-plugins-1.0'].manifest inject
 // arbitrary top-level keys that fail schema validation, so — deliberately,
 // unlike every other adapter — we do NOT deepMerge the override. Only its
 // `extensions` sub-key is honored, and each entry is validated to be a
@@ -54,7 +54,7 @@ function pluginManifest(model: PluginModel): { manifest: Record<string, unknown>
   const warnings: string[] = []
   const manifest: Record<string, unknown> = { $schema: PLUGIN_SCHEMA, ...baseManifestFields(config) }
 
-  const override = config.harnesses.overrides['agent-plugins-1.0']
+  const override = config.harnesses.settings['agent-plugins-1.0']?.manifest
   if (isPlainObject(override) && isPlainObject(override.extensions)) {
     const extensions: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(override.extensions)) {

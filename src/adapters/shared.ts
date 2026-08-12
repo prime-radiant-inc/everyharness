@@ -28,20 +28,13 @@ export function json(value: unknown): string {
 // Whether a harness's shell-hook tier (session-start / run-hook.cmd / merged
 // hooks.json, and the manifest's `hooks` pointer at that merged file) should
 // be emitted for an active bootstrap. False when bootstrap is inactive
-// ('none'), or when the plugin author set `bootstrap.emitHooks` to false for
-// this harness (either the boolean shorthand or this harness's key in the
-// per-harness map) to keep their own hand-written hooks wiring instead. A
-// harness absent from the map defaults to true. Shared by claude-code and
-// cursor, the only two adapters with a shell-hook tier (see
-// HOOK_EMITTING_HARNESSES in config.ts) — each passes its own adapter name.
-export function bootstrapEmitsHooks(bootstrap: EveryharnessConfig['bootstrap'], harness: string): boolean {
-  switch (bootstrap.kind) {
-    case 'skill':
-    case 'generate':
-      return bootstrap.emitHooks[harness] ?? true
-    case 'none':
-      return false
-  }
+// ('none'), or when the plugin author set `harnesses.<name>.hooks: own` to keep
+// their own hand-written hooks wiring instead. A harness with no settings entry
+// defaults to 'generated'. Shared by claude-code and cursor, the only two
+// adapters with a shell-hook tier (see HOOK_EMITTING_HARNESSES in config.ts) —
+// each passes its own adapter name.
+export function bootstrapEmitsHooks(config: EveryharnessConfig, harness: string): boolean {
+  return config.bootstrap.kind !== 'none' && (config.harnesses.settings[harness]?.hooks ?? 'generated') === 'generated'
 }
 
 // The marketplace listing name an install id addresses the plugin by:

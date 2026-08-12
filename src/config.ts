@@ -13,15 +13,44 @@ export class ConfigError extends Error {
 }
 
 // The harnesses whose adapters have a shell-hook tier and therefore honor
-// bootstrap.emitHooks. Shared by resolveBootstrap (validates map keys
-// against this set) and bootstrapEmitsHooks's callers (each adapter passes
-// its own name, which must be a member).
+// `harnesses.<name>.hooks: own`. Shared by resolveBootstrap (validates that a
+// `hooks: own` opt-out only names a hook-emitting harness) and
+// bootstrapEmitsHooks's callers (each adapter passes its own name).
 export const HOOK_EMITTING_HARNESSES = ['claude-code', 'cursor'] as const
 
+// The canonical adapter-name registry, used to validate that every key under
+// `harnesses:` (other than `exclude`) names a real adapter — so a typo like
+// `claudecode:` is a ConfigError instead of a silently-ignored block.
+// config.ts cannot import the live registry from src/adapters/index.ts without
+// an import cycle (every adapter imports EveryharnessConfig from this file), so
+// the list is duplicated here and kept honest by tests/adapters/registry.test.ts,
+// which asserts it matches `adapters.map(a => a.name)`.
+export const ADAPTER_NAMES = [
+  'claude-code',
+  'cursor',
+  'codex',
+  'devin',
+  'kimi',
+  'gemini',
+  'opencode',
+  'pi',
+  'hermes',
+  'agent-plugins-1.0',
+  'agents-marketplace',
+] as const
+
 export type BootstrapMode =
-  | { kind: 'skill'; skill: string; emitHooks: Record<string, boolean> }
-  | { kind: 'generate'; emitHooks: Record<string, boolean> }
+  | { kind: 'skill'; skill: string }
+  | { kind: 'generate' }
   | { kind: 'none' }
+
+// A resolved harnesses.<name> block: the per-harness hook tier ('generated'
+// default | 'own') and an optional manifest patch (deep-merged into the
+// adapter's generated manifest; a null value is the delete-sentinel).
+export interface HarnessSettings {
+  hooks: 'generated' | 'own'
+  manifest?: Record<string, unknown>
+}
 
 // Shared with import.ts, which validates a Claude plugin.json's name against
 // this same rule before writing it into everyharness.yaml.
@@ -59,6 +88,33 @@ const requiredComponentPath = z.preprocess(
 )
 const componentPath = requiredComponentPath.optional()
 
+// bootstrap is a tagged value: the string literals 'none'/'generate', or the
+// object form { skill: <name> } when the skill-bootstrap needs a parameter.
+// Legacy object forms ({ none: true } / { generate: true } / emitHooks) are
+// rejected with pointed migration errors in rejectLegacySyntax before the
+// schema ever runs.
+const bootstrapSchema = z
+  .union([z.literal('none'), z.literal('generate'), z.object({ skill: z.string() }).strict()])
+  .optional()
+
+const releaseSchema = z
+  .object({
+    files: z
+      .array(
+        z.object({
+          path: requiredComponentPath,
+          field: z.string(),
+        }),
+      )
+      .optional(),
+    audit: z
+      .object({
+        exclude: z.array(z.string()).optional(),
+      })
+      .optional(),
+  })
+  .optional()
+
 const rawSchema = z.object({
   name: z.string().regex(PLUGIN_NAME_RE, 'lowercase alphanumerics and hyphens'),
   version: z.string().regex(VERSION_RE, VERSION_MESSAGE),
@@ -68,14 +124,7 @@ const rawSchema = z.object({
   repository: z.string().optional(),
   homepage: z.string().optional(),
   keywords: z.array(z.string()).optional(),
-  bootstrap: z
-    .object({
-      skill: z.string().optional(),
-      generate: z.literal(true).optional(),
-      none: z.literal(true).optional(),
-      emitHooks: z.union([z.boolean(), z.record(z.string(), z.boolean())]).optional(),
-    })
-    .optional(),
+  bootstrap: bootstrapSchema,
   components: z
     .object({
       skills: componentPath,
@@ -85,11 +134,14 @@ const rawSchema = z.object({
       mcp: componentPath,
     })
     .optional(),
+  // exclude is validated here; the per-harness settings blocks (any adapter
+  // name) pass through and are validated by resolveHarnessSettings so their
+  // keys can be checked against the adapter registry and given pointed errors.
   harnesses: z
     .object({
       exclude: z.array(z.string()).optional(),
-      overrides: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
     })
+    .passthrough()
     .optional(),
   marketplace: z
     .object({
@@ -107,23 +159,7 @@ const rawSchema = z.object({
       strict: z.boolean().optional(),
     })
     .optional(),
-  bump: z
-    .object({
-      files: z
-        .array(
-          z.object({
-            path: requiredComponentPath,
-            field: z.string(),
-          }),
-        )
-        .optional(),
-      audit: z
-        .object({
-          exclude: z.array(z.string()).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  release: releaseSchema,
 })
 
 export interface EveryharnessConfig {
@@ -137,7 +173,7 @@ export interface EveryharnessConfig {
   keywords?: string[]
   bootstrap: BootstrapMode
   components: { skills: string; commands: string; agents: string; hooks: string; mcp: string }
-  harnesses: { exclude: string[]; overrides: Record<string, Record<string, unknown>> }
+  harnesses: { exclude: string[]; settings: Record<string, HarnessSettings> }
   marketplace?: {
     name?: string
     description?: string
@@ -146,51 +182,123 @@ export interface EveryharnessConfig {
     tags?: string[]
     strict?: boolean
   }
-  bump?: {
+  release?: {
     files?: { path: string; field: string }[]
     audit?: { exclude?: string[] }
   }
 }
 
-// Normalizes bootstrap.emitHooks to a per-harness Record: absent -> {}
-// (bootstrapEmitsHooks treats a missing key as true); a boolean applies to
-// every hook-emitting harness; a map is validated against
-// HOOK_EMITTING_HARNESSES and returned as-is (an unnamed harness in the map
-// still defaults to true downstream, so the map is not filled in here).
-function normalizeEmitHooks(raw: boolean | Record<string, boolean> | undefined): Record<string, boolean> {
-  if (raw === undefined) return {}
-  if (typeof raw === 'boolean') {
-    return Object.fromEntries(HOOK_EMITTING_HARNESSES.map((harness) => [harness, raw]))
-  }
-  const unknown = Object.keys(raw).find((key) => !(HOOK_EMITTING_HARNESSES as readonly string[]).includes(key))
-  if (unknown !== undefined) {
-    throw new ConfigError(
-      'bootstrap.emitHooks: unknown harness',
-      [`"${unknown}" (valid: ${HOOK_EMITTING_HARNESSES.join(', ')})`],
-    )
-  }
-  return raw
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): BootstrapMode {
-  if (!raw) return { kind: 'none' }
-  const modes = [raw.skill !== undefined, raw.generate === true, raw.none === true]
-  const count = modes.filter(Boolean).length
-  if (count !== 1) {
-    throw new ConfigError(
-      'bootstrap: set exactly one of skill / generate / none',
-      [`bootstrap has ${count} modes set`],
-    )
-  }
-  if (raw.none) {
-    if (raw.emitHooks !== undefined) {
-      throw new ConfigError('bootstrap.emitHooks: only valid with skill or generate, not none')
+// The four config-v1 syntaxes are a clean break in v2 (Jesse's call: only his
+// own plugins use everyharness, so no back-compat). Each is caught on the raw
+// document BEFORE the schema parse so the author gets a pointed migration
+// message naming the replacement, not a generic zod validation error.
+function rejectLegacySyntax(doc: unknown): void {
+  if (!isPlainObject(doc)) return
+  const bootstrap = doc.bootstrap
+  if (isPlainObject(bootstrap)) {
+    if ('none' in bootstrap || 'generate' in bootstrap) {
+      throw new ConfigError(
+        'bootstrap is now a tagged value: use "bootstrap: none", "bootstrap: generate", or "bootstrap: { skill: <name> }"',
+      )
     }
-    return { kind: 'none' }
+    if ('emitHooks' in bootstrap) {
+      throw new ConfigError('bootstrap.emitHooks moved: set harnesses.<name>.hooks: own')
+    }
   }
-  const emitHooks = normalizeEmitHooks(raw.emitHooks)
-  if (raw.skill !== undefined) return { kind: 'skill', skill: raw.skill, emitHooks }
-  return { kind: 'generate', emitHooks }
+  const harnesses = doc.harnesses
+  if (isPlainObject(harnesses) && 'overrides' in harnesses) {
+    throw new ConfigError('harnesses.overrides moved: put manifest patches under harnesses.<name>.manifest')
+  }
+  if ('bump' in doc) {
+    throw new ConfigError('bump: was renamed: use release: (same fields)')
+  }
+}
+
+// Validates every harnesses.<name> block from the v2 dialect: unknown harness
+// names (typo-catching against ADAPTER_NAMES), the hooks enum, that manifest is
+// a mapping, and that no stray keys sneak in. Returns the resolved per-harness
+// settings that consumers read directly (hooks defaults to 'generated').
+function resolveHarnessSettings(raw: Record<string, unknown> | undefined): {
+  exclude: string[]
+  settings: Record<string, HarnessSettings>
+} {
+  const exclude = (raw?.exclude as string[] | undefined) ?? []
+  const settings: Record<string, HarnessSettings> = {}
+  if (!raw) return { exclude, settings }
+
+  // The same typo-catching rationale as the per-harness blocks: an excluded
+  // name that matches no adapter would silently exclude nothing.
+  for (const name of exclude) {
+    if (!(ADAPTER_NAMES as readonly string[]).includes(name)) {
+      throw new ConfigError(`harnesses.exclude: unknown harness name "${name}"`, [
+        `valid names: ${ADAPTER_NAMES.join(', ')}`,
+      ])
+    }
+  }
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === 'exclude') continue
+    if (!(ADAPTER_NAMES as readonly string[]).includes(key)) {
+      throw new ConfigError(`harnesses.${key}: unknown harness name`, [`valid names: ${ADAPTER_NAMES.join(', ')}`])
+    }
+    if (!isPlainObject(value)) {
+      throw new ConfigError(`harnesses.${key}: must be a mapping of hooks and/or manifest`)
+    }
+    for (const settingKey of Object.keys(value)) {
+      if (settingKey !== 'hooks' && settingKey !== 'manifest') {
+        throw new ConfigError(`harnesses.${key}.${settingKey}: unknown key (expected hooks or manifest)`)
+      }
+    }
+    const entry: HarnessSettings = { hooks: 'generated' }
+    if ('hooks' in value) {
+      const hooks = value.hooks
+      if (hooks !== 'generated' && hooks !== 'own') {
+        throw new ConfigError(`harnesses.${key}.hooks: must be "generated" or "own"`)
+      }
+      entry.hooks = hooks
+    }
+    if ('manifest' in value) {
+      const manifest = value.manifest
+      if (!isPlainObject(manifest)) {
+        throw new ConfigError(`harnesses.${key}.manifest: must be a mapping`)
+      }
+      entry.manifest = manifest
+    }
+    settings[key] = entry
+  }
+  return { exclude, settings }
+}
+
+// Resolves the tagged bootstrap value into its internal model: the string
+// literals map to 'none'/'generate', the { skill } object to the skill mode,
+// and an absent value to 'none'.
+function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): BootstrapMode {
+  if (raw === undefined || raw === 'none') return { kind: 'none' }
+  if (raw === 'generate') return { kind: 'generate' }
+  return { kind: 'skill', skill: raw.skill }
+}
+
+// A `hooks: own` opt-out is only meaningful on a hook-emitting harness with an
+// active bootstrap; anywhere else there are no generated hooks to suppress, so
+// it's a pointed ConfigError rather than a silent no-op.
+function validateHarnessHooks(settings: Record<string, HarnessSettings>, bootstrap: BootstrapMode): void {
+  for (const [name, entry] of Object.entries(settings)) {
+    if (entry.hooks !== 'own') continue
+    if (!(HOOK_EMITTING_HARNESSES as readonly string[]).includes(name)) {
+      throw new ConfigError(
+        `harnesses.${name}.hooks: own is only valid on hook-emitting harnesses (${HOOK_EMITTING_HARNESSES.join(', ')})`,
+      )
+    }
+    if (bootstrap.kind === 'none') {
+      throw new ConfigError(
+        `harnesses.${name}.hooks: own requires an active bootstrap (bootstrap: generate or bootstrap: { skill: <name> }); there are no generated hooks to suppress`,
+      )
+    }
+  }
 }
 
 function checkMarketplace(marketplace: z.infer<typeof rawSchema>['marketplace'], repository: string | undefined): void {
@@ -212,6 +320,7 @@ export function loadConfig(root: string): EveryharnessConfig {
   } catch (e) {
     throw new ConfigError(`everyharness.yaml is not valid YAML: ${(e as Error).message}`, [], { cause: e })
   }
+  rejectLegacySyntax(doc)
   const parsed = rawSchema.safeParse(doc)
   if (!parsed.success) {
     throw new ConfigError(
@@ -221,6 +330,11 @@ export function loadConfig(root: string): EveryharnessConfig {
   }
   const raw = parsed.data
   checkMarketplace(raw.marketplace, raw.repository)
+
+  const { exclude, settings } = resolveHarnessSettings(raw.harnesses)
+  const bootstrap = resolveBootstrap(raw.bootstrap)
+  validateHarnessHooks(settings, bootstrap)
+
   return {
     name: raw.name,
     version: raw.version,
@@ -230,7 +344,7 @@ export function loadConfig(root: string): EveryharnessConfig {
     repository: raw.repository,
     homepage: raw.homepage,
     keywords: raw.keywords,
-    bootstrap: resolveBootstrap(raw.bootstrap),
+    bootstrap,
     components: {
       skills: raw.components?.skills ?? 'skills',
       commands: raw.components?.commands ?? 'commands',
@@ -238,11 +352,8 @@ export function loadConfig(root: string): EveryharnessConfig {
       hooks: raw.components?.hooks ?? 'hooks/hooks.json',
       mcp: raw.components?.mcp ?? '.mcp.json',
     },
-    harnesses: {
-      exclude: raw.harnesses?.exclude ?? [],
-      overrides: raw.harnesses?.overrides ?? {},
-    },
+    harnesses: { exclude, settings },
     marketplace: raw.marketplace,
-    bump: raw.bump,
+    release: raw.release,
   }
 }

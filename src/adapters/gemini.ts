@@ -16,7 +16,7 @@ function extensionManifest(model: PluginModel): Record<string, unknown> {
     version: config.version,
     contextFileName: 'GEMINI.md',
   }
-  const override = config.harnesses.overrides.gemini
+  const override = config.harnesses.settings.gemini?.manifest
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 
@@ -155,7 +155,7 @@ export const gemini: HarnessAdapter = {
       files.push({ path: GENERATED_BOOTSTRAP_PATH, content: generatedBootstrap(model) })
     }
 
-    const contextFileNameOverride = config.harnesses.overrides.gemini?.contextFileName
+    const contextFileNameOverride = config.harnesses.settings.gemini?.manifest?.contextFileName
     if (typeof contextFileNameOverride === 'string' && contextFileNameOverride !== 'GEMINI.md') {
       warnings.push(
         `contextFileName override "${contextFileNameOverride}" does not match the emitted GEMINI.md; the harness will look for a missing file`,

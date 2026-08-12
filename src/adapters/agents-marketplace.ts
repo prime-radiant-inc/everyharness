@@ -42,7 +42,7 @@ function marketplaceDescriptor(model: PluginModel): Record<string, unknown> {
     plugins,
   }
 
-  const override = config.harnesses.overrides['agents-marketplace']
+  const override = config.harnesses.settings['agents-marketplace']?.manifest
   return override ? (deepMerge(descriptor, override) as Record<string, unknown>) : descriptor
 }
 

@@ -276,7 +276,7 @@ describe('agent-plugins installDoc mcp condition (Finding 2)', () => {
 
 describe('opencode installDoc bootstrap conditionality (Finding 1)', () => {
   it('omits "injects bootstrap context" when bootstrap.kind is "none"', () => {
-    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
     const noneModel = buildModel(dir)
     const body = opencode.installDoc!(noneModel)
     expect(body).not.toContain('injects bootstrap context')
@@ -291,7 +291,7 @@ describe('opencode installDoc bootstrap conditionality (Finding 1)', () => {
 
 describe('pi installDoc bootstrap conditionality (Finding 1)', () => {
   it('omits "injects bootstrap context" when bootstrap.kind is "none"', () => {
-    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
     const noneModel = buildModel(dir)
     const body = pi.installDoc!(noneModel)
     expect(body).not.toContain('injects bootstrap context')
@@ -311,7 +311,7 @@ describe('kimi installDoc caveat conditionality (representative)', () => {
   })
 
   it('omits the sessionStart sentence entirely for a none-bootstrap fixture', () => {
-    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
     const noneModel = buildModel(dir)
     const body = kimi.installDoc!(noneModel)
     expect(body).not.toContain('sessionStart')

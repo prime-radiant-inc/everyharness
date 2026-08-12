@@ -185,8 +185,7 @@ describe('generate', () => {
       'description: Test with trailing slashes',
       'components:',
       '  skills: skills/',
-      'bootstrap:',
-      '  none: true',
+      'bootstrap: none',
     ].join('\n'))
     mkdirSync(join(dir, 'skills'))
     writeFileSync(join(dir, 'skills', 'demo.md'), '# Demo Skill\n')
@@ -332,8 +331,7 @@ describe('generate', () => {
       'description: components.mcp explicitly set to mcp.json',
       'components:',
       '  mcp: mcp.json',
-      'bootstrap:',
-      '  none: true',
+      'bootstrap: none',
     ].join('\n'))
     writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
     const result = generate(dir)
@@ -348,8 +346,7 @@ describe('generate', () => {
       'description: components.mcp explicitly set to mcp.json',
       'components:',
       '  mcp: mcp.json',
-      'bootstrap:',
-      '  none: true',
+      'bootstrap: none',
     ].join('\n'))
     writeFileSync(join(dir, 'mcp.json'), JSON.stringify({ mcpServers: { demo: { command: 'node' } } }))
     const result = generate(dir)
@@ -364,7 +361,7 @@ describe('generate', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-gen-inprocess-bootstrap-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: inprocess-demo\nversion: 1.0.0\ndescription: in-process adapters generate-mode fixture\nbootstrap:\n  generate: true\n',
+      'name: inprocess-demo\nversion: 1.0.0\ndescription: in-process adapters generate-mode fixture\nbootstrap: generate\n',
     )
     const result = generate(dir, [opencode, pi, hermes])
     expect(result.adaptersRun).toEqual(['opencode', 'pi', 'hermes'])

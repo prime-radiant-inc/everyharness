@@ -22,7 +22,7 @@ const DEFAULT_PATHS = {
 // The plugin.json keys this importer understands: the eight mapped
 // top-level fields plus the five component-path override keys (mcpServers
 // is Claude's name for the mcp override). Anything else is unknown and
-// carried into harnesses.overrides.claude-code verbatim.
+// carried into harnesses.claude-code.manifest verbatim.
 const MAPPED_PLUGIN_JSON_KEYS = new Set([
   'name',
   'version',
@@ -255,9 +255,9 @@ export function importPlugin(root: string): ImportResult {
   // Bootstrap: a skill literally named using-<plugin-name> opts into the
   // skill-bootstrap mode; otherwise fall back to generate mode.
   const bootstrapSkillName = `using-${name}`
-  output.bootstrap = skillDirs.includes(bootstrapSkillName)
-    ? { skill: bootstrapSkillName }
-    : { generate: true }
+  // v2 tagged bootstrap: the { skill } object form, or the 'generate' string
+  // literal.
+  output.bootstrap = skillDirs.includes(bootstrapSkillName) ? { skill: bootstrapSkillName } : 'generate'
 
   if (Object.keys(components).length > 0) output.components = components
 
@@ -268,10 +268,11 @@ export function importPlugin(root: string): ImportResult {
   for (const key of Object.keys(pluginJson)) {
     if (MAPPED_PLUGIN_JSON_KEYS.has(key)) continue
     overrideExtras[key] = pluginJson[key]
-    warnings.push(`carried unknown plugin.json key "${key}" into harnesses.overrides.claude-code`)
+    warnings.push(`carried unknown plugin.json key "${key}" into harnesses.claude-code.manifest`)
   }
   if (Object.keys(overrideExtras).length > 0) {
-    output.harnesses = { overrides: { 'claude-code': overrideExtras } }
+    // Carried extras become a manifest patch under harnesses.claude-code.
+    output.harnesses = { 'claude-code': { manifest: overrideExtras } }
   }
 
   writeFileSync(configPath, stringify(output))

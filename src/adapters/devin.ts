@@ -7,7 +7,7 @@ import { baseManifestFields, json, githubOwnerRepo } from './shared.js'
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
   const manifest = baseManifestFields(config)
-  const override = config.harnesses.overrides.devin
+  const override = config.harnesses.settings.devin?.manifest
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
 }
 

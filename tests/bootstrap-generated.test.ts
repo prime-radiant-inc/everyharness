@@ -35,7 +35,7 @@ describe('bootstrap.generate mode, executed end-to-end', () => {
     writeFileSync(join(dir, 'skills', 'beta', 'SKILL.md'), '---\nname: beta\ndescription: Handles beta tasks\n---\n\nBody.\n')
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: generate-e2e\nversion: 1.0.0\ndescription: generate-mode end-to-end fixture\nbootstrap:\n  generate: true\n',
+      'name: generate-e2e\nversion: 1.0.0\ndescription: generate-mode end-to-end fixture\nbootstrap: generate\n',
     )
 
     const model = buildModel(dir)

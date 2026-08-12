@@ -193,7 +193,7 @@ describe('pi adapter', () => {
 
 describe('pi adapter without commands/agents/hooks/mcp', () => {
   it('emits no warnings', () => {
-    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap: none\n')
     const plainModel = buildModel(dir)
     const result = pi.emit(plainModel)
     expect(result.warnings).toEqual([])
@@ -202,7 +202,7 @@ describe('pi adapter without commands/agents/hooks/mcp', () => {
 
 describe('pi adapter with bootstrap.generate', () => {
   it('resolves the bootstrap path to the generated bootstrap.md', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const ts = pi.emit(genModel).files.find((f) => f.path === '.pi/extensions/gen-demo.ts')!.content
     expect(ts).toContain(`resolve(packageRoot, '${GENERATED_BOOTSTRAP_PATH}')`)
@@ -210,7 +210,7 @@ describe('pi adapter with bootstrap.generate', () => {
   })
 
   it('emits the generated bootstrap.md file itself, not just a reference to it', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const bootstrapMd = pi.emit(genModel).files.find((f) => f.path === GENERATED_BOOTSTRAP_PATH)
     expect(bootstrapMd?.content).toContain('# gen-demo plugin')
@@ -218,7 +218,7 @@ describe('pi adapter with bootstrap.generate', () => {
 })
 
 describe('pi adapter with bootstrap: none', () => {
-  const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+  const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
   const noneModel = buildModel(dir)
   const ts = pi.emit(noneModel).files.find((f) => f.path === '.pi/extensions/none-demo.ts')!.content
 

@@ -49,9 +49,8 @@ export function init(root: string, opts: { force?: boolean } = {}): InitResult {
     name: pluginName,
     version: '0.1.0',
     description: 'TODO describe this plugin',
-    bootstrap: {
-      generate: true,
-    },
+    // v2 tagged bootstrap: the 'generate' string literal.
+    bootstrap: 'generate',
   }
 
   const created: string[] = []

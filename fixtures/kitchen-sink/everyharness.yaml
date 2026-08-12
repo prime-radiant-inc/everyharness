@@ -11,8 +11,8 @@ bootstrap:
   skill: using-kitchen-sink
 
 harnesses:
-  overrides:
-    claude-code:
+  claude-code:
+    manifest:
       homepage: https://example.com/kitchen-sink
 
 marketplace:
@@ -20,7 +20,7 @@ marketplace:
   category: Developer Tools
   tags: [demo, fixture]
 
-bump:
+release:
   files:
     - { path: release.json, field: version }
   audit:

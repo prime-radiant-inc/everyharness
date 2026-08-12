@@ -126,7 +126,7 @@ describe('hermes adapter', () => {
 
 describe('hermes adapter without commands/agents/hooks/mcp', () => {
   it('emits no warnings', () => {
-    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap: none\n')
     const plainModel = buildModel(dir)
     const result = hermes.emit(plainModel)
     expect(result.warnings).toEqual([])
@@ -135,7 +135,7 @@ describe('hermes adapter without commands/agents/hooks/mcp', () => {
 
 describe('hermes adapter with bootstrap.generate', () => {
   it('resolves the bootstrap path to the generated bootstrap.md', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const files = hermes.emit(genModel).files
     const py = files.find((f) => f.path === '.hermes-plugin/__init__.py')!.content
@@ -159,7 +159,7 @@ describe('hermes adapter with bootstrap.generate', () => {
   })
 
   it('emits the generated bootstrap.md file itself, not just a reference to it', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const bootstrapMd = hermes.emit(genModel).files.find((f) => f.path === GENERATED_BOOTSTRAP_PATH)
     expect(bootstrapMd?.content).toContain('# gen-demo plugin')
@@ -167,7 +167,7 @@ describe('hermes adapter with bootstrap.generate', () => {
 })
 
 describe('hermes adapter with bootstrap: none', () => {
-  const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+  const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
   const noneModel = buildModel(dir)
   const files = hermes.emit(noneModel).files
   const py = files.find((f) => f.path === '.hermes-plugin/__init__.py')!.content
@@ -285,7 +285,7 @@ describe('hermes plugin.py -- execution smoke test', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-hermes-exec-nobootstrap-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: demo\nversion: 1.0.0\ndescription: missing-bootstrap fixture\nbootstrap:\n  generate: true\n',
+      'name: demo\nversion: 1.0.0\ndescription: missing-bootstrap fixture\nbootstrap: generate\n',
     )
     mkdirSync(join(dir, 'skills', 'a-skill'), { recursive: true })
     writeFileSync(
