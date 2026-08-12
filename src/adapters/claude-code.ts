@@ -5,7 +5,7 @@ import type { EveryharnessConfig } from '../config.js'
 import type { HarnessAdapter, EmitResult } from './types.js'
 import { sessionStartScript, runHookCmd, mergedClaudeHooks } from '../bootstrap/shell-hook.js'
 import { generatedBootstrap, GENERATED_BOOTSTRAP_PATH } from '../bootstrap/generated.js'
-import { baseManifestFields, json, githubOwnerRepo } from './shared.js'
+import { baseManifestFields, json, githubOwnerRepo, marketplaceName } from './shared.js'
 
 // Where the claude-code adapter emits the bootstrap SessionStart hook and its
 // merged hooks.json, when config.bootstrap.kind === 'skill'.
@@ -62,14 +62,6 @@ function pluginManifest(model: PluginModel): Record<string, unknown> {
   }
   const override = config.harnesses.overrides['claude-code']
   return override ? (deepMerge(manifest, override) as Record<string, unknown>) : manifest
-}
-
-// Marketplace listing name: `config.marketplace.name` when set, otherwise the
-// local-dev default `<name>-dev`. Shared by marketplaceManifest (the listing
-// itself) and installDoc (the `/plugin install <name>@<marketplace-name>`
-// line) so the two can never drift apart.
-function marketplaceName(config: EveryharnessConfig): string {
-  return config.marketplace?.name ?? `${config.name}-dev`
 }
 
 // Marketplace plugin entry `source`: 'local' (or absent) keeps the local-dev
