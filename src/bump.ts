@@ -7,9 +7,10 @@ import { checkDrift, loadManifest, MANIFEST_PATH } from './manifest.js'
 
 // `everyharness bump` is the replacement for hand-rolled per-repo version-bump
 // scripts (e.g. superpowers' scripts/bump-version.sh + .version-bump.json).
-// everyharness.yaml is the version source of truth; `bump.files` names the
+// everyharness.yaml is the version source of truth; `release.files` names the
 // extra, non-generated files that also carry the version, and the audit sweeps
-// for occurrences nobody declared.
+// for occurrences nobody declared. (The CLI verb stays `everyharness bump`; the
+// config section it reads is `release`.)
 
 const CONFIG_FILE = 'everyharness.yaml'
 
@@ -66,9 +67,9 @@ export interface AuditResult {
 }
 
 // generate() silently overwrites any file it already tracks in the manifest,
-// so a bump.files entry naming a generated file — or everyharness.yaml itself,
-// which bumpVersion already rewrites directly — would have bump write it and
-// then the regeneration step immediately clobber that write, silently
+// so a release.files entry naming a generated file — or everyharness.yaml
+// itself, which bumpVersion already rewrites directly — would have bump write
+// it and then the regeneration step immediately clobber that write, silently
 // discarding whatever bump (or a hand customization) just put there. Refuse
 // the config outright instead of letting the two systems fight over the same
 // file. Called by all three modes right after loadConfig: a check/audit
@@ -79,17 +80,17 @@ export interface AuditResult {
 // will end up owning.
 function assertNoGeneratedBumpFiles(root: string, config: EveryharnessConfig): void {
   const manifest = loadManifest(root)
-  for (const entry of config.bump?.files ?? []) {
+  for (const entry of config.release?.files ?? []) {
     const isConfigFile = entry.path === CONFIG_FILE
     const isGenerated = manifest !== undefined && Object.prototype.hasOwnProperty.call(manifest.files, entry.path)
     if (isConfigFile) {
       throw new ConfigError(
-        `bump.files declares "${entry.path}" — the config file is the version's source of truth and is bumped directly, not via bump.files entries`,
+        `release.files declares "${entry.path}" — the config file is the version's source of truth and is bumped directly, not via release.files entries`,
       )
     }
     if (isGenerated) {
       throw new ConfigError(
-        `bump.files declares "${entry.path}", a generated file — generated files are owned by generate and are bumped via regeneration, not bump.files entries`,
+        `release.files declares "${entry.path}", a generated file — generated files are owned by generate and are bumped via regeneration, not release.files entries`,
       )
     }
   }
@@ -104,7 +105,7 @@ export function bumpVersion(root: string, newVersion: string): BumpResult {
   }
   const config = loadConfig(root)
   assertNoGeneratedBumpFiles(root, config)
-  const declared = config.bump?.files ?? []
+  const declared = config.release?.files ?? []
 
   // Preflight: every declared file that exists must be readable. Collect all
   // failures and report them together before mutating anything on disk.
@@ -120,7 +121,7 @@ export function bumpVersion(root: string, newVersion: string): BumpResult {
     }
   }
   if (preflightErrors.length > 0) {
-    throw new ConfigError('cannot bump: declared bump.files are not all readable', preflightErrors)
+    throw new ConfigError('cannot bump: declared release.files are not all readable', preflightErrors)
   }
 
   const files: BumpFileChange[] = []
@@ -154,7 +155,7 @@ export function bumpCheck(root: string): CheckResult {
   const versions = new Set<string>([config.version])
   let anyMissing = false
 
-  for (const entry of config.bump?.files ?? []) {
+  for (const entry of config.release?.files ?? []) {
     const abs = join(root, entry.path)
     if (!existsSync(abs)) {
       files.push({ path: entry.path, field: entry.field })
@@ -178,14 +179,15 @@ export function bumpCheck(root: string): CheckResult {
 }
 
 // Sweep the repo for the current version string and report occurrences in
-// files nobody accounts for: not declared in bump.files, not everyharness.yaml,
-// not a generated file, and not matched by a bump.audit.exclude pattern.
+// files nobody accounts for: not declared in release.files, not
+// everyharness.yaml, not a generated file, and not matched by a
+// release.audit.exclude pattern.
 export function bumpAudit(root: string): AuditResult {
   const config = loadConfig(root)
   assertNoGeneratedBumpFiles(root, config)
   const version = config.version
   const accounted = accountedPaths(root, config)
-  const patterns = config.bump?.audit?.exclude ?? []
+  const patterns = config.release?.audit?.exclude ?? []
 
   const findings: AuditFinding[] = []
   for (const rel of walkFiles(root, patterns)) {
@@ -202,11 +204,11 @@ export function bumpAudit(root: string): AuditResult {
 }
 
 // Paths whose version string is expected and must never be flagged: the config
-// itself, the manifest, every declared bump file, and every generated file the
-// manifest records.
+// itself, the manifest, every declared release file, and every generated file
+// the manifest records.
 function accountedPaths(root: string, config: EveryharnessConfig): Set<string> {
   const accounted = new Set<string>([CONFIG_FILE, MANIFEST_PATH])
-  for (const entry of config.bump?.files ?? []) accounted.add(entry.path)
+  for (const entry of config.release?.files ?? []) accounted.add(entry.path)
   const manifest = loadManifest(root)
   if (manifest) for (const path of Object.keys(manifest.files)) accounted.add(path)
   return accounted

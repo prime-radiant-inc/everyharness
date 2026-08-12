@@ -89,7 +89,7 @@ describe('claude-code adapter with bootstrap.generate', () => {
     )
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap: generate\n',
     )
     const generateModel = buildModel(dir)
     const result = claudeCode.emit(generateModel)
@@ -148,7 +148,7 @@ describe('claude-code adapter installDoc', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-norepo-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-repo\nversion: 1.0.0\ndescription: no repository fixture\nbootstrap:\n  none: true\n',
+      'name: no-repo\nversion: 1.0.0\ndescription: no repository fixture\nbootstrap: none\n',
     )
     const noRepoModel = buildModel(dir)
     const body = claudeCode.installDoc!(noRepoModel)
@@ -160,7 +160,7 @@ describe('claude-code adapter installDoc', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-nongithub-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: non-github\nversion: 1.0.0\ndescription: non-github repository fixture\nrepository: https://gitlab.com/owner/repo\nbootstrap:\n  none: true\n',
+      'name: non-github\nversion: 1.0.0\ndescription: non-github repository fixture\nrepository: https://gitlab.com/owner/repo\nbootstrap: none\n',
     )
     const nonGithubModel = buildModel(dir)
     expect(claudeCode.installDoc!(nonGithubModel)).toContain('claude /plugin marketplace add <your-repo>')
@@ -170,7 +170,7 @@ describe('claude-code adapter installDoc', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-installdoc-nobootstrap-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-bootstrap\nversion: 1.0.0\ndescription: no bootstrap fixture\nbootstrap:\n  none: true\n',
+      'name: no-bootstrap\nversion: 1.0.0\ndescription: no bootstrap fixture\nbootstrap: none\n',
     )
     const noBootstrapModel = buildModel(dir)
     const body = claudeCode.installDoc!(noBootstrapModel)
@@ -234,7 +234,7 @@ describe('claude-code adapter marketplace field handling', () => {
   })
 })
 
-describe('claude-code adapter with bootstrap.emitHooks: false', () => {
+describe('claude-code adapter with harnesses.claude-code.hooks: own', () => {
   it('emits no hooks/ files and no manifest hooks key for skill mode (no user hooks file)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-skill-'))
     mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
@@ -244,7 +244,7 @@ describe('claude-code adapter with bootstrap.emitHooks: false', () => {
     )
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks\nversion: 1.0.0\ndescription: emitHooks false fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+      'name: no-hooks\nversion: 1.0.0\ndescription: hooks own fixture\nbootstrap:\n  skill: using-demo\nharnesses:\n  claude-code:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const result = claudeCode.emit(noHooksModel)
@@ -257,7 +257,7 @@ describe('claude-code adapter with bootstrap.emitHooks: false', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-claude-code-emithooks-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks-generate\nversion: 1.0.0\ndescription: emitHooks false generate fixture\nbootstrap:\n  generate: true\n  emitHooks: false\n',
+      'name: no-hooks-generate\nversion: 1.0.0\ndescription: hooks own generate fixture\nbootstrap: generate\nharnesses:\n  claude-code:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const result = claudeCode.emit(noHooksModel)
@@ -286,9 +286,11 @@ describe('claude-code adapter with bootstrap.emitHooks: false', () => {
         'description: own hooks fallback fixture',
         'bootstrap:',
         '  skill: using-demo',
-        '  emitHooks: false',
         'components:',
         '  hooks: my-hooks.json',
+        'harnesses:',
+        '  claude-code:',
+        '    hooks: own',
       ].join('\n'),
     )
     const fallbackModel = buildModel(dir)
@@ -307,7 +309,7 @@ describe('claude-code adapter with bootstrap.emitHooks: false', () => {
     )
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks-doc\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+      'name: no-hooks-doc\nversion: 1.0.0\ndescription: hooks own installDoc fixture\nbootstrap:\n  skill: using-demo\nharnesses:\n  claude-code:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const body = claudeCode.installDoc!(noHooksModel)

@@ -146,65 +146,77 @@ function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): 
     repository: claude.repository,
     license: claude.license,
     keywords: claude.keywords,
-    // emitHooks: false -- superpowers hand-wires its own bootstrap hooks
-    // (hooks/run-hook.cmd, hooks/session-start) directly under hooks/ rather
-    // than the adapters' generated hooks/everyharness/*.json, so neither
-    // claude-code nor cursor should force their own hooks pointer into the
-    // manifest. See src/adapters/shared.ts's bootstrapEmitsHooks.
-    bootstrap: { skill: 'using-superpowers', emitHooks: false },
+    bootstrap: { skill: 'using-superpowers' },
     // Closes Finding 1: marketplaceManifest() (src/adapters/claude-code.ts)
     // deep-merges this onto its hardcoded `Development marketplace for
     // ${config.name}` default, reproducing superpowers' hand-written copy.
     marketplace: { description: marketplace.description },
     harnesses: {
-      overrides: {
-        // cursor: display name and description are cursor-specific copy.
-        // hooks points at superpowers' own hand-wired hooks-cursor.json --
-        // with emitHooks: false above, pluginManifest() no longer supplies
-        // its own hooks pointer, so the override channel carries the real
-        // value instead. Everything else (author, homepage, repository,
-        // license, keywords) matches the shared base fields above with no
-        // override.
-        cursor: {
+      // hooks: own -- superpowers hand-wires its own bootstrap hooks
+      // (hooks/run-hook.cmd, hooks/session-start) directly under hooks/ rather
+      // than the adapters' generated hooks/everyharness/*.json, so neither
+      // claude-code nor cursor should force their own hooks pointer into the
+      // manifest. See src/adapters/shared.ts's bootstrapEmitsHooks.
+      'claude-code': { hooks: 'own' },
+      // cursor: hooks own (same reason as claude-code) plus a manifest patch.
+      // display name and description are cursor-specific copy; hooks points at
+      // superpowers' own hand-wired hooks-cursor.json -- with hooks: own,
+      // pluginManifest() no longer supplies its own hooks pointer, so the
+      // manifest patch carries the real value instead. Everything else
+      // (author, homepage, repository, license, keywords) matches the shared
+      // base fields above with no patch.
+      cursor: {
+        hooks: 'own',
+        manifest: {
           displayName: cursor.displayName,
           description: cursor.description,
           hooks: cursor.hooks,
         },
-        // gemini: only description differs from the shared base (gemini's
-        // extensionManifest doesn't include author/homepage/repository/
-        // license/keywords at all).
-        gemini: {
+      },
+      // gemini: only description differs from the shared base (gemini's
+      // extensionManifest doesn't include author/homepage/repository/
+      // license/keywords at all).
+      gemini: {
+        manifest: {
           description: gemini.description,
         },
-        // codex: its own description + keyword set, an extra author.url
-        // (deep-merged onto the shared {name,email}), and the full portal
-        // `interface` block, which has no base-field equivalent.
-        codex: {
+      },
+      // codex: its own description + keyword set, an extra author.url
+      // (deep-merged onto the shared {name,email}), and the full portal
+      // `interface` block, which has no base-field equivalent.
+      codex: {
+        manifest: {
           description: codex.description,
           keywords: codex.keywords,
           author: { url: codexAuthor.url },
           interface: codex.interface,
         },
-        // devin: shares codex's description and keyword set but keeps the
-        // shared plain {name,email} author (no url).
-        devin: {
+      },
+      // devin: shares codex's description and keyword set but keeps the
+      // shared plain {name,email} author (no url).
+      devin: {
+        manifest: {
           description: devin.description,
           keywords: devin.keywords,
         },
-        // kimi: its own (shorter) description, codex's keyword set, its
-        // tool-mapping skillInstructions, and its own (smaller) interface
-        // block. Uses repository: null to delete the inherited field.
-        kimi: {
+      },
+      // kimi: its own (shorter) description, codex's keyword set, its
+      // tool-mapping skillInstructions, and its own (smaller) interface
+      // block. Uses repository: null to delete the inherited field.
+      kimi: {
+        manifest: {
           description: kimi.description,
           keywords: kimi.keywords,
           skillInstructions: kimi.skillInstructions,
           interface: kimi.interface,
           repository: null,
         },
-        // agents-marketplace: displayName override plus a full replacement
-        // of the plugins array (deepMerge replaces arrays wholesale) to add
-        // the category field the default descriptor never sets.
-        'agents-marketplace': {
+      },
+      // agents-marketplace: displayName patch plus a full replacement of the
+      // plugins array (deepMerge replaces arrays wholesale) to add the
+      // category field the default descriptor never sets.
+      'agents-marketplace': {
+        manifest: {
           interface: { displayName: agentsMarketplace.interface.displayName },
           plugins: agentsMarketplace.plugins,
         },

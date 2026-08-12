@@ -81,7 +81,7 @@ describe('importPlugin', () => {
       homepage: 'https://example.com/demo',
       keywords: ['demo', 'test'],
       bootstrap: { skill: 'using-demo' },
-      harnesses: { overrides: { 'claude-code': { xPortal: { a: 1 } } } },
+      harnesses: { 'claude-code': { manifest: { xPortal: { a: 1 } } } },
     })
     expect(readFileSync(result.configPath, 'utf8')).toBe(expected)
 
@@ -157,9 +157,9 @@ describe('importPlugin', () => {
       name: 'custom-paths',
       version: '1.0.0',
       description: 'Custom paths',
-      bootstrap: { generate: true },
+      bootstrap: 'generate',
       components: { commands: 'my-cmds' },
-      harnesses: { overrides: { 'claude-code': { xClaude: { b: 2 } } } },
+      harnesses: { 'claude-code': { manifest: { xClaude: { b: 2 } } } },
     })
     expect(readFileSync(result.configPath, 'utf8')).toBe(expected)
 

@@ -108,7 +108,7 @@ describe('opencode adapter', () => {
 
 describe('opencode adapter with a plugin name starting with a digit', () => {
   it('prefixes the PascalCase export so it stays a valid JS identifier', async () => {
-    const dir = tmpFixture('name: 123-tool\nversion: 1.0.0\ndescription: leading-digit name fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: 123-tool\nversion: 1.0.0\ndescription: leading-digit name fixture\nbootstrap: none\n')
     const digitModel = buildModel(dir)
     const js = opencode.emit(digitModel).files.find((f) => f.path === '.opencode/plugins/123-tool.js')!.content
     expect(js).toContain('export const _123ToolPlugin = async ({ client, directory }) => {')
@@ -123,7 +123,7 @@ describe('opencode adapter with a plugin name starting with a digit', () => {
 
 describe('opencode adapter without hooks/mcp/tools-bearing agents', () => {
   it('emits no warnings', () => {
-    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap: none\n')
     const plainModel = buildModel(dir)
     const result = opencode.emit(plainModel)
     expect(result.warnings).toEqual([])
@@ -132,7 +132,7 @@ describe('opencode adapter without hooks/mcp/tools-bearing agents', () => {
 
 describe('opencode adapter with bootstrap.generate', () => {
   it('resolves the bootstrap path to the generated bootstrap.md', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const js = opencode.emit(genModel).files.find((f) => f.path === '.opencode/plugins/gen-demo.js')!.content
     expect(js).toContain(`path.resolve(__dirname, '../../${GENERATED_BOOTSTRAP_PATH}')`)
@@ -140,7 +140,7 @@ describe('opencode adapter with bootstrap.generate', () => {
   })
 
   it('emits the generated bootstrap.md file itself, not just a reference to it', () => {
-    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap:\n  generate: true\n')
+    const dir = tmpFixture('name: gen-demo\nversion: 1.0.0\ndescription: generate-mode fixture\nbootstrap: generate\n')
     const genModel = buildModel(dir)
     const bootstrapMd = opencode.emit(genModel).files.find((f) => f.path === GENERATED_BOOTSTRAP_PATH)
     expect(bootstrapMd?.content).toContain('# gen-demo plugin')
@@ -149,7 +149,7 @@ describe('opencode adapter with bootstrap.generate', () => {
 
 describe('opencode adapter with bootstrap: none', () => {
   it('omits the bootstrap cache and message-transform hook, keeping only the config hook', () => {
-    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap:\n  none: true\n')
+    const dir = tmpFixture('name: none-demo\nversion: 1.0.0\ndescription: bootstrap-none fixture\nbootstrap: none\n')
     const noneModel = buildModel(dir)
     const js = opencode.emit(noneModel).files.find((f) => f.path === '.opencode/plugins/none-demo.js')!.content
     expect(js).not.toContain('_bootstrapCache')
@@ -218,7 +218,7 @@ describe('opencode plugin JS — dynamic import execution (bootstrap: none)', ()
     const dir = mkdtempSync(join(tmpdir(), 'eh-opencode-exec-none-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: nodemo\nversion: 1.0.0\ndescription: exec none fixture\nbootstrap:\n  none: true\n',
+      'name: nodemo\nversion: 1.0.0\ndescription: exec none fixture\nbootstrap: none\n',
     )
     mkdirSync(join(dir, 'skills', 'demo'), { recursive: true })
     writeFileSync(join(dir, 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: demo\n---\n\nBody.\n')

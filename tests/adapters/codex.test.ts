@@ -55,8 +55,8 @@ describe('codex adapter', () => {
   })
 })
 
-describe('codex adapter with harnesses.overrides.codex', () => {
-  it('deep-merges interface portal metadata from the override into plugin.json', () => {
+describe('codex adapter with harnesses.codex.manifest', () => {
+  it('deep-merges interface portal metadata from the manifest patch into plugin.json', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-codex-override-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -65,8 +65,8 @@ describe('codex adapter with harnesses.overrides.codex', () => {
         'version: 1.0.0',
         'description: override fixture for codex interface metadata',
         'harnesses:',
-        '  overrides:',
-        '    codex:',
+        '  codex:',
+        '    manifest:',
         '      interface:',
         '        displayName: Demo',
       ].join('\n'),

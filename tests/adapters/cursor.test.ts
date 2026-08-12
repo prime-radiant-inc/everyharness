@@ -81,8 +81,8 @@ describe('cursor adapter', () => {
   })
 })
 
-describe('cursor adapter with harnesses.overrides.cursor', () => {
-  it('overrides displayName via harnesses.overrides.cursor', () => {
+describe('cursor adapter with harnesses.cursor.manifest', () => {
+  it('overrides displayName via harnesses.cursor.manifest', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-override-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
@@ -90,11 +90,10 @@ describe('cursor adapter with harnesses.overrides.cursor', () => {
         'name: override-demo',
         'version: 1.0.0',
         'description: override fixture for cursor displayName',
-        'bootstrap:',
-        '  none: true',
+        'bootstrap: none',
         'harnesses:',
-        '  overrides:',
-        '    cursor:',
+        '  cursor:',
+        '    manifest:',
         '      displayName: Fancy',
       ].join('\n'),
     )
@@ -105,7 +104,7 @@ describe('cursor adapter with harnesses.overrides.cursor', () => {
   })
 })
 
-describe('cursor adapter with bootstrap.emitHooks: false', () => {
+describe('cursor adapter with harnesses.cursor.hooks: own', () => {
   it('emits no hooks/ files and no manifest hooks key for skill mode', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-skill-'))
     mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
@@ -115,7 +114,7 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
     )
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks\nversion: 1.0.0\ndescription: emitHooks false fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+      'name: no-hooks\nversion: 1.0.0\ndescription: hooks own fixture\nbootstrap:\n  skill: using-demo\nharnesses:\n  cursor:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const result = cursor.emit(noHooksModel)
@@ -128,7 +127,7 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks-generate\nversion: 1.0.0\ndescription: emitHooks false generate fixture\nbootstrap:\n  generate: true\n  emitHooks: false\n',
+      'name: no-hooks-generate\nversion: 1.0.0\ndescription: hooks own generate fixture\nbootstrap: generate\nharnesses:\n  cursor:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const result = cursor.emit(noHooksModel)
@@ -150,7 +149,7 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
     )
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks-doc\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+      'name: no-hooks-doc\nversion: 1.0.0\ndescription: hooks own installDoc fixture\nbootstrap:\n  skill: using-demo\nharnesses:\n  cursor:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const body = cursor.installDoc!(noHooksModel)
@@ -168,7 +167,7 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
     writeFileSync(join(dir, 'hooks', 'hooks.json'), '{"hooks":{}}\n')
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: no-hooks-doc-hooks\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture with hand-written hooks\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+      'name: no-hooks-doc-hooks\nversion: 1.0.0\ndescription: hooks own installDoc fixture with hand-written hooks\nbootstrap:\n  skill: using-demo\nharnesses:\n  cursor:\n    hooks: own\n',
     )
     const noHooksModel = buildModel(dir)
     const body = cursor.installDoc!(noHooksModel)
@@ -178,7 +177,7 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
   })
 })
 
-describe('bootstrap.emitHooks as a per-harness map', () => {
+describe('per-harness hooks: own', () => {
   it('suppresses claude-code hooks while cursor keeps its default-true hooks, from one shared config', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-mixed-emithooks-'))
     mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
@@ -191,11 +190,12 @@ describe('bootstrap.emitHooks as a per-harness map', () => {
       [
         'name: mixed-emithooks',
         'version: 1.0.0',
-        'description: per-harness emitHooks fixture',
+        'description: per-harness hooks fixture',
         'bootstrap:',
         '  skill: using-demo',
-        '  emitHooks:',
-        '    claude-code: false',
+        'harnesses:',
+        '  claude-code:',
+        '    hooks: own',
       ].join('\n'),
     )
     const mixedModel = buildModel(dir)
@@ -227,7 +227,7 @@ describe('cursor adapter with bootstrap.generate', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-generate-'))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
-      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap:\n  generate: true\n',
+      'name: generate-bootstrap\nversion: 1.0.0\ndescription: bootstrap.generate fixture\nbootstrap: generate\n',
     )
     const generateModel = buildModel(dir)
     const result = cursor.emit(generateModel)

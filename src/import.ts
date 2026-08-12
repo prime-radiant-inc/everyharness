@@ -255,9 +255,11 @@ export function importPlugin(root: string): ImportResult {
   // Bootstrap: a skill literally named using-<plugin-name> opts into the
   // skill-bootstrap mode; otherwise fall back to generate mode.
   const bootstrapSkillName = `using-${name}`
-  output.bootstrap = skillDirs.includes(bootstrapSkillName)
-    ? { skill: bootstrapSkillName }
-    : { generate: true }
+  // v2 tagged bootstrap: the { skill } object form, or the 'generate' string
+  // literal. (Full import emission redesign — warning text, extras placement —
+  // is Task 2; this is the minimal v2 emission so the written yaml round-trips
+  // through the v2 loadConfig below.)
+  output.bootstrap = skillDirs.includes(bootstrapSkillName) ? { skill: bootstrapSkillName } : 'generate'
 
   if (Object.keys(components).length > 0) output.components = components
 
@@ -271,7 +273,10 @@ export function importPlugin(root: string): ImportResult {
     warnings.push(`carried unknown plugin.json key "${key}" into harnesses.overrides.claude-code`)
   }
   if (Object.keys(overrideExtras).length > 0) {
-    output.harnesses = { overrides: { 'claude-code': overrideExtras } }
+    // v2: carried extras become a manifest patch under harnesses.claude-code.
+    // (Task 2 owns the full import redesign, including the warning wording
+    // above, which still says "overrides".)
+    output.harnesses = { 'claude-code': { manifest: overrideExtras } }
   }
 
   writeFileSync(configPath, stringify(output))
