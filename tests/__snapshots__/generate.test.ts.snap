@@ -27,10 +27,6 @@ exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`
 {
   "name": "kitchen-sink-market",
   "description": "Development marketplace for kitchen-sink",
-  "owner": {
-    "name": "Prime Radiant",
-    "email": "dev@prime-radiant.example"
-  },
   "plugins": [
     {
       "name": "kitchen-sink",
@@ -47,20 +43,24 @@ exports[`generate > snapshots the generated tree for the kitchen-sink fixture 1`
         "fixture"
       ]
     }
-  ]
+  ],
+  "owner": {
+    "name": "Prime Radiant",
+    "email": "dev@prime-radiant.example"
+  }
 }
 
 === .claude-plugin/plugin.json ===
 {
   "name": "kitchen-sink",
-  "description": "Fixture plugin exercising every component type",
   "version": "0.1.0",
+  "description": "Fixture plugin exercising every component type",
   "author": {
     "name": "Prime Radiant",
     "email": "dev@prime-radiant.example"
   },
-  "repository": "https://github.com/prime-radiant-inc/everyharness",
   "license": "MIT",
+  "repository": "https://github.com/prime-radiant-inc/everyharness",
   "keywords": [
     "fixture"
   ],

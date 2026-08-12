@@ -28,17 +28,16 @@ const BOOTSTRAP_HOOKS_JSON_PATH = `${BOOTSTRAP_HOOKS_DIR}/hooks.json`
 function pluginManifest(model: PluginModel): Record<string, unknown> {
   const { config } = model
   const base = baseManifestFields(config)
-  // Field order matches superpowers' hand-written .claude-plugin/plugin.json
-  // (name, description, version, author, homepage, repository, license,
-  // keywords) -- the canonical order the dogfood test regenerates
-  // byte-for-byte. Differs from baseManifestFields' own
-  // name/version/description/.../homepage/repository/license order (shared
-  // with cursor/codex/devin/kimi, which stay on that order).
-  const manifest: Record<string, unknown> = { name: base.name, description: base.description, version: base.version }
+  // license/repository/homepage are in the opposite sub-order from
+  // baseManifestFields' own return value -- a historical artifact, not a
+  // requirement. JSON key order is explicitly not a goal anywhere in
+  // everyharness (see Finding 3's Resolution and the ruling note in
+  // docs/superpowers/plans/2026-08-11-dogfood-findings.md).
+  const manifest: Record<string, unknown> = { name: base.name, version: base.version, description: base.description }
   if ('author' in base) manifest.author = base.author
-  if ('homepage' in base) manifest.homepage = base.homepage
-  if ('repository' in base) manifest.repository = base.repository
   if ('license' in base) manifest.license = base.license
+  if ('repository' in base) manifest.repository = base.repository
+  if ('homepage' in base) manifest.homepage = base.homepage
   if ('keywords' in base) manifest.keywords = base.keywords
   // Claude Code auto-discovers commands/, agents/, skills/, hooks/hooks.json,
   // and .mcp.json; only non-default locations need explicit manifest keys.
@@ -89,15 +88,12 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
   if (config.marketplace?.category) entry.category = config.marketplace.category
   if (config.marketplace?.tags) entry.keywords = config.marketplace.tags
   if (config.marketplace?.strict !== undefined) entry.strict = config.marketplace.strict
-  // Field order matches superpowers' hand-written .claude-plugin/marketplace.json
-  // (name, description, owner, plugins) -- the canonical order the dogfood
-  // test regenerates byte-for-byte.
   const marketplace: Record<string, unknown> = {
     name: marketplaceName(config),
     description: config.marketplace?.description ?? `Development marketplace for ${config.name}`,
+    plugins: [entry],
   }
   if (config.author) marketplace.owner = config.author
-  marketplace.plugins = [entry]
   return marketplace
 }
 
