@@ -54,15 +54,15 @@ describe('bumpVersion', () => {
     expect(text).toContain('# kitchen-sink: fixture plugin')
 
     // declared file
-    expect(readField(join(dir, 'package.json'), 'version')).toBe('9.9.9')
+    expect(readField(join(dir, 'release.json'), 'version')).toBe('9.9.9')
 
     // regenerated harness manifests
     expect(readField(join(dir, '.claude-plugin/plugin.json'), 'version')).toBe('9.9.9')
     expect(readField(join(dir, '.claude-plugin/marketplace.json'), 'plugins.0.version')).toBe('9.9.9')
 
     // one declared bump line, marked bumped
-    const pkg = result.files.find((f) => f.path === 'package.json')
-    expect(pkg).toMatchObject({ status: 'bumped', oldVersion: '0.1.0', newVersion: '9.9.9' })
+    const declared = result.files.find((f) => f.path === 'release.json')
+    expect(declared).toMatchObject({ status: 'bumped', oldVersion: '0.1.0', newVersion: '9.9.9' })
 
     expect(result.audit.clean).toBe(true)
   })
@@ -71,7 +71,7 @@ describe('bumpVersion', () => {
     const dir = freshFixture()
     const result = bumpVersion(dir, '9.9.9')
     expect(result.newVersion).toBe('9.9.9')
-    expect(readField(join(dir, 'package.json'), 'version')).toBe('9.9.9')
+    expect(readField(join(dir, 'release.json'), 'version')).toBe('9.9.9')
     expect(readField(join(dir, '.claude-plugin/plugin.json'), 'version')).toBe('9.9.9')
     expect(result.audit.clean).toBe(true)
   })
@@ -81,21 +81,21 @@ describe('bumpVersion', () => {
     setYaml(
       dir,
       yaml(dir).replace(
-        '    - { path: package.json, field: version }',
-        '    - { path: package.json, field: version }\n    - { path: absent.json, field: version }',
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: absent.json, field: version }',
       ),
     )
     const result = bumpVersion(dir, '9.9.9')
     const absent = result.files.find((f) => f.path === 'absent.json')
     expect(absent).toMatchObject({ status: 'skipped' })
-    expect(readField(join(dir, 'package.json'), 'version')).toBe('9.9.9')
+    expect(readField(join(dir, 'release.json'), 'version')).toBe('9.9.9')
   })
 
   it('reports every unreadable declared file before writing anything', () => {
     const dir = generatedFixture()
-    // package.json declared with a field that does not exist -> preflight failure
+    // release.json declared with a field that does not exist -> preflight failure
     setYaml(dir, yaml(dir).replace('field: version }', 'field: nope }'))
-    const before = readField(join(dir, 'package.json'), 'version')
+    const before = readField(join(dir, 'release.json'), 'version')
     try {
       bumpVersion(dir, '9.9.9')
       expect.unreachable('bumpVersion should have thrown on preflight')
@@ -104,8 +104,82 @@ describe('bumpVersion', () => {
       expect((e as ConfigError).message).toContain('nope')
     }
     // nothing was written
-    expect(readField(join(dir, 'package.json'), 'version')).toBe(before)
+    expect(readField(join(dir, 'release.json'), 'version')).toBe(before)
     expect(yaml(dir)).toContain('version: 0.1.0')
+  })
+})
+
+describe('bump refuses a declared generated file', () => {
+  it('bumpVersion rejects everyharness.yaml as a declared bump.files entry', () => {
+    const dir = generatedFixture()
+    setYaml(
+      dir,
+      yaml(dir).replace(
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: everyharness.yaml, field: version }',
+      ),
+    )
+    try {
+      bumpVersion(dir, '9.9.9')
+      expect.unreachable('bumpVersion should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain('everyharness.yaml')
+    }
+  })
+
+  it('bumpVersion rejects a manifest-tracked generated file (package.json)', () => {
+    const dir = generatedFixture()
+    setYaml(
+      dir,
+      yaml(dir).replace(
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: package.json, field: version }',
+      ),
+    )
+    try {
+      bumpVersion(dir, '9.9.9')
+      expect.unreachable('bumpVersion should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain('package.json')
+    }
+  })
+
+  it('bumpCheck rejects everyharness.yaml as a declared bump.files entry', () => {
+    const dir = generatedFixture()
+    setYaml(
+      dir,
+      yaml(dir).replace(
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: everyharness.yaml, field: version }',
+      ),
+    )
+    try {
+      bumpCheck(dir)
+      expect.unreachable('bumpCheck should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain('everyharness.yaml')
+    }
+  })
+
+  it('bumpCheck rejects a manifest-tracked generated file (package.json)', () => {
+    const dir = generatedFixture()
+    setYaml(
+      dir,
+      yaml(dir).replace(
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: package.json, field: version }',
+      ),
+    )
+    try {
+      bumpCheck(dir)
+      expect.unreachable('bumpCheck should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError)
+      expect((e as ConfigError).message).toContain('package.json')
+    }
   })
 })
 
@@ -115,8 +189,8 @@ describe('bumpCheck', () => {
     const result = bumpCheck(dir)
     expect(result.drift).toBe(false)
     expect(result.configVersion).toBe('0.1.0')
-    const pkg = result.files.find((f) => f.path === 'package.json')
-    expect(pkg?.version).toBe('0.1.0')
+    const declared = result.files.find((f) => f.path === 'release.json')
+    expect(declared?.version).toBe('0.1.0')
   })
 
   it('detects drift when a declared file holds a different version', () => {
@@ -127,8 +201,8 @@ describe('bumpCheck', () => {
     setYaml(
       dir,
       yaml(dir).replace(
-        '    - { path: package.json, field: version }',
-        '    - { path: package.json, field: version }\n    - { path: extra.json, field: version }',
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: extra.json, field: version }',
       ),
     )
     const result = bumpCheck(dir)
@@ -141,8 +215,8 @@ describe('bumpCheck', () => {
     setYaml(
       dir,
       yaml(dir).replace(
-        '    - { path: package.json, field: version }',
-        '    - { path: package.json, field: version }\n    - { path: absent.json, field: version }',
+        '    - { path: release.json, field: version }',
+        '    - { path: release.json, field: version }\n    - { path: absent.json, field: version }',
       ),
     )
     const result = bumpCheck(dir)

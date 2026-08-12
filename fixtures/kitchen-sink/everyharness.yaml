@@ -22,6 +22,6 @@ marketplace:
 
 bump:
   files:
-    - { path: package.json, field: version }
+    - { path: release.json, field: version }
   audit:
     exclude: []

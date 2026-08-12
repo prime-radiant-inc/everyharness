@@ -90,7 +90,9 @@ bump:
   bumped and is not listed here.
 - **`audit.exclude`** — glob patterns the `--audit` scan skips. A pattern is
   matched against the basename or any single path segment (grep
-  `--exclude`/`--exclude-dir` semantics).
+  `--exclude`/`--exclude-dir` semantics). A pattern containing `/` (e.g.
+  `docs/CHANGELOG.md`) never matches anything, since no single segment
+  contains a `/` — exclude by basename or directory name instead.
 
 Three modes, exactly one per invocation:
 
