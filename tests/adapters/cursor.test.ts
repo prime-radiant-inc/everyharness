@@ -156,6 +156,26 @@ describe('cursor adapter with bootstrap.emitHooks: false', () => {
     const body = cursor.installDoc!(noHooksModel)
     expect(body).not.toContain('bootstrap hook')
   })
+
+  it('does not claim a bootstrap hook is emitted in the Caveats section when the plugin has hand-written hooks', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-cursor-emithooks-installdoc-hooks-'))
+    mkdirSync(join(dir, 'skills', 'using-demo'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-demo', 'SKILL.md'),
+      '---\nname: using-demo\ndescription: demo bootstrap skill\n---\n\nBody.\n',
+    )
+    mkdirSync(join(dir, 'hooks'), { recursive: true })
+    writeFileSync(join(dir, 'hooks', 'hooks.json'), '{"hooks":{}}\n')
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: no-hooks-doc-hooks\nversion: 1.0.0\ndescription: emitHooks false installDoc fixture with hand-written hooks\nbootstrap:\n  skill: using-demo\n  emitHooks: false\n',
+    )
+    const noHooksModel = buildModel(dir)
+    const body = cursor.installDoc!(noHooksModel)
+    expect(body).toContain('## Caveats')
+    expect(body).not.toContain('only the bootstrap sessionStart hook is emitted')
+    expect(body).toContain('no hooks are emitted for Cursor')
+  })
 })
 
 describe('cursor adapter with bootstrap.generate', () => {

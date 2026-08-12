@@ -71,11 +71,16 @@ function installDoc(model: PluginModel): string {
     "Point it at this plugin's directory (or search the plugin marketplace once it's listed there). Cursor reads `.cursor-plugin/plugin.json`. Consult Cursor's plugin docs if this doesn't match your installed version.",
   ]
   if (model.hooks !== undefined) {
+    // Cursor never translates hand-written hook entries, in either bootstrap
+    // mode; only which (if any) bootstrap hook is emitted varies.
+    const bootstrapHookNote = bootstrapActive
+      ? 'only the bootstrap sessionStart hook is emitted'
+      : 'no hooks are emitted for Cursor'
     lines.push(
       '',
       '## Caveats',
       '',
-      `- Hand-written entries in \`${config.components.hooks}\` are not translated for Cursor; only the bootstrap sessionStart hook is emitted.`,
+      `- Hand-written entries in \`${config.components.hooks}\` are not translated for Cursor; ${bootstrapHookNote}.`,
     )
   }
   return lines.join('\n')

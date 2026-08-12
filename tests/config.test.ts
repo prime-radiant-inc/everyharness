@@ -106,6 +106,12 @@ describe('loadConfig', () => {
     ))).toThrow(/emitHooks/)
   })
 
+  it('rejects bootstrap.emitHooks: true set alongside none too — emitHooks is meaningless without a bootstrap', () => {
+    expect(() => loadConfig(repoWith(
+      'name: x\nversion: 1.0.0\ndescription: x\nbootstrap:\n  none: true\n  emitHooks: true\n'
+    ))).toThrow(/emitHooks/)
+  })
+
   it('reports a missing everyharness.yaml as a ConfigError', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-empty-'))
     expect(() => loadConfig(dir)).toThrowError(/everyharness\.yaml not found/)
