@@ -240,9 +240,25 @@ byte-exact with the existing shared order and were left untouched. The
 kitchen-sink snapshot's two claude-code entries updated accordingly; every
 other snapshot entry stayed byte-identical.
 
+**Ruling (2026-08-12):** Jesse ruled that JSON key order is explicitly NOT
+something everyharness cares about — the byte-exactness this Resolution
+chased was never a real goal, only an artifact of the dogfood test's own
+comparison method. The `ef53d66` reorder above was reverted (see the
+2026-08-12-per-harness-emithooks plan, Task 2): `pluginManifest()` and
+`marketplaceManifest()` are back to their pre-`ef53d66` field order (verified
+exact against `git show 58bd63a:tests/__snapshots__/generate.test.ts.snap`),
+and the "canonical order" comments are gone. `tests/dogfood.test.ts` now
+asserts semantic JSON equality (parsed, `toEqual`) instead of byte
+comparison for all eight files; formatting and key order are explicitly out
+of scope and documented as such in the test's header.
+
 ## Status
 
-All three findings are fixed as of this branch (2026-08-12). The dogfood
-test's `EXPECTED_DIFFERENCES` map (`tests/dogfood.test.ts`) is now empty,
-and all eight of superpowers' hand-maintained manifests regenerate
-byte-for-byte.
+Findings 1 and 2 are fixed as of this branch (2026-08-12); the dogfood
+test's `EXPECTED_DIFFERENCES` map (`tests/dogfood.test.ts`) is empty and all
+eight of superpowers' hand-maintained manifests regenerate semantically
+identical. Finding 3 was fixed and then partially reverted per the ruling
+above: the underlying values remain correct (they always were — the gap was
+never in `deepMerge`/override expressiveness), but claude-code's field order
+no longer matches superpowers' hand-written files byte-for-byte, and the
+dogfood test no longer requires it to.

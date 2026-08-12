@@ -8,13 +8,24 @@ import { generate } from '../src/generate.js'
 
 // Design decision 7 / spec decision 7's north-star acceptance test: prove
 // everyharness's config + overrides are expressive enough to regenerate
-// superpowers' own hand-maintained per-harness manifests byte-for-byte
-// (modulo documented, by-design differences). Reads the LOCAL checkout via
-// `git archive dev` (never touches the checkout's working tree or index --
-// archive reads straight from the object database regardless of what's
-// currently checked out); skips gracefully when the checkout isn't present
-// (CI on GitHub won't have it). Overridable via EH_SUPERPOWERS_REPO for
-// machines where the checkout lives somewhere else.
+// superpowers' own hand-maintained per-harness manifests semantically
+// (modulo documented, by-design differences). Comparison is parsed-JSON
+// deep equality (`toEqual`), not raw bytes: JSON key order and formatting
+// are explicitly not a goal (Jesse's ruling, 2026-08-12 -- see Finding 3's
+// Resolution in docs/superpowers/plans/2026-08-11-dogfood-findings.md) and
+// are never asserted here. Reads the LOCAL checkout via `git archive dev`
+// (never touches the checkout's working tree or index -- archive reads
+// straight from the object database regardless of what's currently checked
+// out); skips gracefully when the checkout isn't present (CI on GitHub
+// won't have it). Overridable via EH_SUPERPOWERS_REPO for machines where
+// the checkout lives somewhere else.
+//
+// That `git archive dev` reads the *live* branch tip, not a pinned SHA, is
+// deliberate: this test is a tripwire against superpowers and everyharness
+// drifting apart, not a snapshot regression test. A hand-edit to
+// superpowers' real manifests (or an everyharness change that stops
+// reproducing them) should fail this test the next time it runs, which a
+// pinned SHA would silently defeat.
 const SUPERPOWERS_REPO = process.env.EH_SUPERPOWERS_REPO ?? '/home/jesse/git/superpowers/superpowers'
 const SUPERPOWERS_AVAILABLE = existsSync(join(SUPERPOWERS_REPO, '.git'))
 
@@ -208,17 +219,8 @@ if (!SUPERPOWERS_AVAILABLE) {
   )
 }
 
-// The COMPARED_FILES with no EXPECTED_DIFFERENCES entry -- with
-// EXPECTED_DIFFERENCES now empty, that's all eight, and the README's
-// dogfood claim is "8 of 8 byte-exact". Derived rather than hardcoded so it
-// can't drift from EXPECTED_DIFFERENCES itself (e.g. if a future difference
-// needs to be tolerated and documented here again).
-const DIFFERENCED_FILES = new Set(EXPECTED_DIFFERENCES.map((d) => d.file))
-const BYTE_EXACT_FILES = COMPARED_FILES.filter((file) => !DIFFERENCED_FILES.has(file))
-
 describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-maintained manifests', () => {
   const originals: Record<ComparedFile, Record<string, unknown>> = {} as Record<ComparedFile, Record<string, unknown>>
-  const originalsRaw: Record<ComparedFile, string> = {} as Record<ComparedFile, string>
   const generated: Record<ComparedFile, Record<string, unknown>> = {} as Record<ComparedFile, Record<string, unknown>>
   let dir: string
 
@@ -231,8 +233,7 @@ describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-ma
     execSync(`git -C "${SUPERPOWERS_REPO}" archive dev | tar -x -C "${dir}"`)
 
     for (const file of COMPARED_FILES) {
-      originalsRaw[file] = readFileSync(join(dir, file), 'utf8')
-      originals[file] = JSON.parse(originalsRaw[file])
+      originals[file] = readJson(join(dir, file))
     }
 
     for (const path of HAND_MAINTAINED_PATHS) {
@@ -256,12 +257,6 @@ describe.skipIf(!SUPERPOWERS_AVAILABLE)('dogfood: regenerate superpowers hand-ma
     it(`regenerates ${file} to match the real manifest, modulo documented differences`, () => {
       const { generated: g, original: o } = withExpectedDifferencesRemoved(file, generated[file], originals[file])
       expect(g).toEqual(o)
-    })
-  }
-
-  for (const file of BYTE_EXACT_FILES) {
-    it(`regenerates ${file} byte-for-byte (no documented differences to mask)`, () => {
-      expect(readFileSync(join(dir, file), 'utf8')).toBe(originalsRaw[file])
     })
   }
 })

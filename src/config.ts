@@ -12,9 +12,15 @@ export class ConfigError extends Error {
   }
 }
 
+// The harnesses whose adapters have a shell-hook tier and therefore honor
+// bootstrap.emitHooks. Shared by resolveBootstrap (validates map keys
+// against this set) and bootstrapEmitsHooks's callers (each adapter passes
+// its own name, which must be a member).
+export const HOOK_EMITTING_HARNESSES = ['claude-code', 'cursor'] as const
+
 export type BootstrapMode =
-  | { kind: 'skill'; skill: string; emitHooks: boolean }
-  | { kind: 'generate'; emitHooks: boolean }
+  | { kind: 'skill'; skill: string; emitHooks: Record<string, boolean> }
+  | { kind: 'generate'; emitHooks: Record<string, boolean> }
   | { kind: 'none' }
 
 // Shared with import.ts, which validates a Claude plugin.json's name against
@@ -67,7 +73,7 @@ const rawSchema = z.object({
       skill: z.string().optional(),
       generate: z.literal(true).optional(),
       none: z.literal(true).optional(),
-      emitHooks: z.boolean().optional(),
+      emitHooks: z.union([z.boolean(), z.record(z.string(), z.boolean())]).optional(),
     })
     .optional(),
   components: z
@@ -146,6 +152,26 @@ export interface EveryharnessConfig {
   }
 }
 
+// Normalizes bootstrap.emitHooks to a per-harness Record: absent -> {}
+// (bootstrapEmitsHooks treats a missing key as true); a boolean applies to
+// every hook-emitting harness; a map is validated against
+// HOOK_EMITTING_HARNESSES and returned as-is (an unnamed harness in the map
+// still defaults to true downstream, so the map is not filled in here).
+function normalizeEmitHooks(raw: boolean | Record<string, boolean> | undefined): Record<string, boolean> {
+  if (raw === undefined) return {}
+  if (typeof raw === 'boolean') {
+    return Object.fromEntries(HOOK_EMITTING_HARNESSES.map((harness) => [harness, raw]))
+  }
+  const unknown = Object.keys(raw).find((key) => !(HOOK_EMITTING_HARNESSES as readonly string[]).includes(key))
+  if (unknown !== undefined) {
+    throw new ConfigError(
+      'bootstrap.emitHooks: unknown harness',
+      [`"${unknown}" (valid: ${HOOK_EMITTING_HARNESSES.join(', ')})`],
+    )
+  }
+  return raw
+}
+
 function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): BootstrapMode {
   if (!raw) return { kind: 'none' }
   const modes = [raw.skill !== undefined, raw.generate === true, raw.none === true]
@@ -162,7 +188,7 @@ function resolveBootstrap(raw: z.infer<typeof rawSchema>['bootstrap']): Bootstra
     }
     return { kind: 'none' }
   }
-  const emitHooks = raw.emitHooks ?? true
+  const emitHooks = normalizeEmitHooks(raw.emitHooks)
   if (raw.skill !== undefined) return { kind: 'skill', skill: raw.skill, emitHooks }
   return { kind: 'generate', emitHooks }
 }
