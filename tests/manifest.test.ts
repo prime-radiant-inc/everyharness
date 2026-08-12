@@ -55,6 +55,22 @@ describe('deepMerge', () => {
       ),
     ).toEqual({ a: { b: 1, c: [3] }, d: 'y', e: true })
   })
+
+  it('deletes keys when override value is null', () => {
+    expect(deepMerge({ a: 1, b: 2 }, { b: null })).toEqual({ a: 1 })
+  })
+
+  it('deletes nested keys when override value is null', () => {
+    expect(deepMerge({ a: { x: 1, y: 2 } }, { a: { y: null } })).toEqual({ a: { x: 1 } })
+  })
+
+  it('ignores null delete when key does not exist in base', () => {
+    expect(deepMerge({ a: 1 }, { b: null })).toEqual({ a: 1 })
+  })
+
+  it('replaces non-object base with nested null delete', () => {
+    expect(deepMerge({ a: 1 }, { a: { b: null } })).toEqual({ a: {} })
+  })
 })
 
 describe('manifest + drift', () => {

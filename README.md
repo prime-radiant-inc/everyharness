@@ -64,6 +64,22 @@ marketplace:
 
 Design: `docs/superpowers/specs/2026-08-10-everyharness-design.md`.
 
+### `harnesses.overrides`
+
+Per-harness overrides allow you to customize specific fields in a harness's generated manifest without affecting others. Overrides are deep-merged with the top-level config fields — arrays and scalars are replaced wholesale, objects are merged recursively.
+
+```yaml
+harnesses:
+  overrides:
+    kimi:
+      displayName: Kimi Code
+      repository: null         # special: null deletes the inherited field
+```
+
+Overrides are deeply merged with corresponding top-level config fields. In the example above, `repository: null` uses the **delete sentinel** to remove the inherited `repository` field from the kimi manifest — essential when a field is required for some harnesses but must be absent in others (e.g., kimi's plugin.json format doesn't include `repository`, while claude-code's does).
+
+Note: A literal `null` cannot be set as a value via overrides; `null` is reserved as a delete sentinel. If you need a null value in the generated manifest, emit it via an adapter's custom field logic instead.
+
 ### `bump`
 
 `everyharness bump` sets the plugin version in one place and propagates it —

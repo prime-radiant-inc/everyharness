@@ -92,12 +92,6 @@ const EXPECTED_DIFFERENCES: ExpectedDifference[] = [
     reason:
       "FINDING (expressiveness gap): claude-code's marketplaceManifest() (src/adapters/claude-code.ts) hardcodes the marketplace description as `Development marketplace for ${config.name}` and never deep-merges harnesses.overrides['claude-code'] the way pluginManifest() does -- there is no override hook for marketplace.json at all. superpowers' hand-written marketplace description ('Development marketplace for Superpowers core skills library') can't be reproduced through config as a result. Reported, not fixed here per Task 6's process rule.",
   },
-  {
-    file: '.kimi-plugin/plugin.json',
-    path: 'repository',
-    reason:
-      "FINDING (expressiveness gap): superpowers' real .kimi-plugin/plugin.json omits `repository` entirely, but everyharness has no way to remove a field inherited from the top-level config for one adapter only -- harnesses.overrides is deep-merged (fileset.ts deepMerge), which can add or replace keys but never delete one. Top-level `repository` is required (present, matching) on claude-code/codex/devin/cursor, so kimi inherits it too, with no override able to unset it. Reported, not fixed here per Task 6's process rule.",
-  },
 ]
 
 function readJson(path: string): Record<string, unknown> {
@@ -186,13 +180,13 @@ function buildConfig(originals: Record<ComparedFile, Record<string, unknown>>): 
         },
         // kimi: its own (shorter) description, codex's keyword set, its
         // tool-mapping skillInstructions, and its own (smaller) interface
-        // block. Deliberately has no `repository` override -- see the
-        // EXPECTED_DIFFERENCES entry for why that field still leaks through.
+        // block. Uses repository: null to delete the inherited field.
         kimi: {
           description: kimi.description,
           keywords: kimi.keywords,
           skillInstructions: kimi.skillInstructions,
           interface: kimi.interface,
+          repository: null,
         },
         // agents-marketplace: displayName override plus a full replacement
         // of the plugins array (deepMerge replaces arrays wholesale) to add
