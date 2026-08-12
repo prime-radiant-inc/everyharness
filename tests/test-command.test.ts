@@ -216,10 +216,14 @@ describe('checks/run-checks.sh', () => {
   })
 
   it('oneline() truncates output to 300 characters', () => {
-    // Extract oneline function and test it with output longer than 300 chars
-    const onelineScript = `source <(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}"); echo "\${#1}"` // Get output length
+    // Sources the real oneline() out of the script (not a copy) and feeds it
+    // output longer than the cap.
     const longString = 'x'.repeat(1000)
-    const result = spawnSync('bash', ['-c', `source <(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}"); output=$(oneline "${longString}"); echo "\${#output}"`], { encoding: 'utf8' })
+    const result = spawnSync(
+      'bash',
+      ['-c', `source <(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}"); output=$(oneline "${longString}"); echo "\${#output}"`],
+      { encoding: 'utf8' },
+    )
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe('300')
   })
