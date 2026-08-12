@@ -78,7 +78,7 @@ version.
 bump:
   files:
     - { path: release.json, field: version }   # a version-bearing file everyharness does not generate
-      # note: package.json is usually generated (opencode/pi bootstrap) — declaring
+      # note: package.json is usually generated (by the opencode/pi adapters) — declaring
       # a generated file here is a ConfigError; generate already bumps those
   audit:
     exclude:

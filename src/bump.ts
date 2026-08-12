@@ -82,7 +82,12 @@ function assertNoGeneratedBumpFiles(root: string, config: EveryharnessConfig): v
   for (const entry of config.bump?.files ?? []) {
     const isConfigFile = entry.path === CONFIG_FILE
     const isGenerated = manifest !== undefined && Object.prototype.hasOwnProperty.call(manifest.files, entry.path)
-    if (isConfigFile || isGenerated) {
+    if (isConfigFile) {
+      throw new ConfigError(
+        `bump.files declares "${entry.path}" — the config file is the version's source of truth and is bumped directly, not via bump.files entries`,
+      )
+    }
+    if (isGenerated) {
       throw new ConfigError(
         `bump.files declares "${entry.path}", a generated file — generated files are owned by generate and are bumped via regeneration, not bump.files entries`,
       )
