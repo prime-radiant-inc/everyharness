@@ -126,6 +126,55 @@ describe('CLI end-to-end', () => {
     expect(forced.stdout).toContain('Generated')
   })
 
+  it('bump <version> exits 0 and rewrites the version everywhere', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    const result = runCli(['bump', '9.9.9'], dir)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Bumping to 9.9.9')
+    expect(result.stdout).toContain('All clear')
+    expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version).toBe('9.9.9')
+    expect(JSON.parse(readFileSync(join(dir, '.claude-plugin', 'plugin.json'), 'utf8')).version).toBe('9.9.9')
+  })
+
+  it('bump --check exits 0 clean and exits 3 on drift', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+
+    const clean = runCli(['bump', '--check'], dir)
+    expect(clean.status).toBe(0)
+    expect(clean.stdout).toContain('in sync')
+
+    writeFileSync(join(dir, '.claude-plugin', 'plugin.json'), '{"tampered": true}\n')
+    const drift = runCli(['bump', '--check'], dir)
+    expect(drift.status).toBe(3)
+    expect(drift.stdout).toContain('DRIFT DETECTED')
+  })
+
+  it('bump --audit exits 0 and flags an undeclared version reference', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    writeFileSync(join(dir, 'notes.txt'), 'we shipped 0.1.0 today\n')
+    const result = runCli(['bump', '--audit'], dir)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('notes.txt')
+  })
+
+  it('bump rejects a non-semver version with exit 1', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    const result = runCli(['bump', 'not-a-version'], dir)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('semver')
+  })
+
+  it('bump with no version and no flag exits 1', () => {
+    const dir = tmpPluginDir()
+    const result = runCli(['bump'], dir)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('exactly one')
+  })
+
   it('init → generate → validate happy path exits 0 at each step', () => {
     const dir = mkdtempSync(join(tmpdir(), 'eh-cli-e2e-'))
 

@@ -1,3 +1,4 @@
+# kitchen-sink: fixture plugin — comment here guards bump's comment-preservation
 name: kitchen-sink
 version: 0.1.0
 description: Fixture plugin exercising every component type
@@ -18,3 +19,9 @@ marketplace:
   name: kitchen-sink-market
   category: Developer Tools
   tags: [demo, fixture]
+
+bump:
+  files:
+    - { path: release.json, field: version }
+  audit:
+    exclude: []

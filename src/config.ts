@@ -21,6 +21,12 @@ export type BootstrapMode =
 // this same rule before writing it into everyharness.yaml.
 export const PLUGIN_NAME_RE = /^[a-z0-9][a-z0-9-]*$/
 
+// The anchored semver rule for the plugin `version` field. Exported so the
+// bump command validates a requested new version against the exact same rule
+// (and reuses the same human-facing wording) the schema enforces on load.
+export const VERSION_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
+export const VERSION_MESSAGE = 'semver, e.g. 1.2.3'
+
 const authorSchema = z.object({
   name: z.string(),
   email: z.string().optional(),
@@ -33,24 +39,23 @@ const authorSchema = z.object({
 // The charset alone permits a `.` or `..` segment (both are valid runs of
 // dots), which would let a path escape the plugin root -- rejected separately
 // below rather than folded into the charset regex.
-const componentPath = z
-  .preprocess(
-    (val) => (typeof val === 'string' ? val.replace(/\/+$/, '') : val),
-    z
-      .string()
-      .regex(
-        /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/,
-        'path segments may contain only letters, digits, dot, underscore, hyphen',
-      )
-      .refine((s) => !s.split('/').includes('.') && !s.split('/').includes('..'), {
-        message: 'path segments may not be . or ..',
-      }),
-  )
-  .optional()
+const requiredComponentPath = z.preprocess(
+  (val) => (typeof val === 'string' ? val.replace(/\/+$/, '') : val),
+  z
+    .string()
+    .regex(
+      /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/,
+      'path segments may contain only letters, digits, dot, underscore, hyphen',
+    )
+    .refine((s) => !s.split('/').includes('.') && !s.split('/').includes('..'), {
+      message: 'path segments may not be . or ..',
+    }),
+)
+const componentPath = requiredComponentPath.optional()
 
 const rawSchema = z.object({
   name: z.string().regex(PLUGIN_NAME_RE, 'lowercase alphanumerics and hyphens'),
-  version: z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'semver, e.g. 1.2.3'),
+  version: z.string().regex(VERSION_RE, VERSION_MESSAGE),
   description: z.string(),
   author: authorSchema.optional(),
   license: z.string().optional(),
@@ -95,6 +100,23 @@ const rawSchema = z.object({
       strict: z.boolean().optional(),
     })
     .optional(),
+  bump: z
+    .object({
+      files: z
+        .array(
+          z.object({
+            path: requiredComponentPath,
+            field: z.string(),
+          }),
+        )
+        .optional(),
+      audit: z
+        .object({
+          exclude: z.array(z.string()).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 })
 
 export interface EveryharnessConfig {
@@ -116,6 +138,10 @@ export interface EveryharnessConfig {
     category?: string
     tags?: string[]
     strict?: boolean
+  }
+  bump?: {
+    files?: { path: string; field: string }[]
+    audit?: { exclude?: string[] }
   }
 }
 
@@ -184,5 +210,6 @@ export function loadConfig(root: string): EveryharnessConfig {
       overrides: raw.harnesses?.overrides ?? {},
     },
     marketplace: raw.marketplace,
+    bump: raw.bump,
   }
 }

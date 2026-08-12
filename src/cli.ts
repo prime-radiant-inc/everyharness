@@ -6,7 +6,59 @@ import { renderMatrix } from './matrix.js'
 import { init } from './init.js'
 import { importPlugin } from './import.js'
 import { runTest, DEFAULT_IMAGE } from './test-command.js'
+import { bumpVersion, bumpCheck, bumpAudit, type BumpResult, type CheckResult, type AuditResult } from './bump.js'
 import { ConfigError } from './config.js'
+
+const LABEL_WIDTH = 45
+
+function label(path: string, field: string): string {
+  return `${path} (${field})`.padEnd(LABEL_WIDTH)
+}
+
+function printCheck(result: CheckResult): void {
+  console.log('Version check:\n')
+  for (const file of result.files) {
+    console.log(`  ${label(file.path, file.field)}  ${file.version ?? 'MISSING'}`)
+  }
+  console.log(`  ${label('everyharness.yaml', 'version')}  ${result.configVersion}`)
+  console.log('')
+  for (const path of result.staleGenerated) {
+    console.log(`generated file stale: ${path}`)
+  }
+  if (result.drift) console.log('DRIFT DETECTED — versions or generated files are out of sync')
+  else console.log(`All declared files are in sync at ${result.configVersion}`)
+}
+
+function printAudit(result: AuditResult): void {
+  console.log(`Audit: scanning repo for version string '${result.version}'...\n`)
+  if (result.clean) {
+    console.log('No undeclared files contain the version string. All clear.')
+    return
+  }
+  console.log(`UNDECLARED files containing '${result.version}':`)
+  for (const finding of result.findings) {
+    console.log(`  ${finding.path}:${finding.line}: ${finding.text}`)
+  }
+  console.log(
+    '\nReview the above — if they should be bumped, add them to bump.files; if they should be skipped, add them to bump.audit.exclude.',
+  )
+}
+
+function printBump(result: BumpResult): void {
+  console.log(`Bumping to ${result.newVersion}...\n`)
+  for (const file of result.files) {
+    if (file.status === 'skipped') console.log(`  SKIP (missing): ${file.path}`)
+    else console.log(`  ${label(file.path, file.field)}  ${file.oldVersion} -> ${result.newVersion}`)
+  }
+  console.log(`  ${label('everyharness.yaml', 'version')}  ${result.configOldVersion} -> ${result.newVersion}`)
+  console.log('')
+  for (const warning of result.generate.warnings) console.warn(`warning: ${warning}`)
+  console.log(
+    `Regenerated ${result.generate.files.length} files for ${result.generate.adaptersRun.length} harness(es)`,
+  )
+  console.log('')
+  printAudit(result.audit)
+}
 
 const program = new Command()
 
@@ -93,6 +145,35 @@ program
   .action(async (opts: { dir: string; image: string }) => {
     const result = await runTest(opts.dir, { image: opts.image })
     if (result.exitCode !== 0) process.exit(result.exitCode)
+  })
+
+program
+  .command('bump')
+  .argument('[version]', 'new semver version to set across everyharness.yaml and declared bump.files')
+  .description(
+    'Bump the plugin version and regenerate. Replaces per-repo bump scripts. ' +
+      '--check reports drift (exit 3), --audit scans for undeclared version strings (exit 0). ' +
+      'Give exactly one of <version>, --check, or --audit.',
+  )
+  .option('--check', 'report current versions and detect drift', false)
+  .option('--audit', 'scan the repo for undeclared occurrences of the current version', false)
+  .option('--dir <path>', 'plugin root directory', '.')
+  .action((version: string | undefined, opts: { check: boolean; audit: boolean; dir: string }) => {
+    const modes = [version !== undefined, opts.check, opts.audit].filter(Boolean).length
+    if (modes !== 1) {
+      throw new ConfigError('bump: give exactly one of <version>, --check, or --audit')
+    }
+    if (opts.check) {
+      const result = bumpCheck(opts.dir)
+      printCheck(result)
+      if (result.drift) process.exit(3)
+      return
+    }
+    if (opts.audit) {
+      printAudit(bumpAudit(opts.dir))
+      return
+    }
+    printBump(bumpVersion(opts.dir, version as string))
   })
 
 program.parseAsync().catch((error: unknown) => {
