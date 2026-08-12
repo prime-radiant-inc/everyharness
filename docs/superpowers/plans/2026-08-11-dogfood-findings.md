@@ -76,6 +76,25 @@ output, so it doesn't leak into plugin.json). Needs a schema change
 record) and a test fixture update; ~15-25 LOC in `claude-code.ts` plus a
 `config.ts` schema tweak.
 
+### Resolution (2026-08-12)
+
+Fixed, via a narrower mechanism than the "suggested fix shape" above:
+`marketplaceManifest()` didn't need a whole new `overrides.claude-code.marketplace`
+channel, just a config-level value for the one field that actually differs
+in practice. Issue #7 (commit `71db3d7`, "feat: claude-code marketplace
+honors name/description/source/strict (#7)") added top-level
+`marketplace.description` to `config.ts`'s schema and wired it into
+`marketplaceManifest()`:
+`description: config.marketplace?.description ?? \`Development marketplace
+for ${config.name}\``. This branch's dogfood config update
+(`tests/dogfood.test.ts`'s `buildConfig()`, commit
+`test: superpowers dogfood regenerates all eight manifests byte-for-byte`)
+sets `marketplace: { description: <superpowers' real marketplace.json
+description> }`, closing the gap this finding reported and removing the
+`.claude-plugin/marketplace.json` / `description` `EXPECTED_DIFFERENCES`
+entry. (`.claude-plugin/marketplace.json` needed a second, unrelated fix —
+key order — before it reached byte-exactness; see Finding 3.)
+
 ## Finding 2: `deepMerge` cannot delete inherited fields (kimi `repository` leak)
 
 **Where:** `src/fileset.ts`, `deepMerge()` (lines 35-42); consumed by every
@@ -155,9 +174,75 @@ needed — just the `deepMerge` behavior change), and (c) updating the
 dogfood config to add `kimi: { repository: null, ... }` and removing the
 `EXPECTED_DIFFERENCES` entry once fixed. ~5 LOC in `fileset.ts`.
 
+### Resolution (2026-08-12)
+
+Fixed exactly as suggested above. Commit `f1b06bc` ("feat: overrides delete
+inherited keys via null sentinel") added the delete-sentinel to
+`deepMerge()`: an override value of exactly `null` now deletes the key from
+`out` instead of merging, recursively at every nesting depth (a `null` for a
+key the base doesn't have is a no-op). This branch's dogfood config update
+(`tests/dogfood.test.ts`'s `buildConfig()`) added `repository: null` to the
+kimi override, and the `.kimi-plugin/plugin.json` / `repository`
+`EXPECTED_DIFFERENCES` entry was removed. `.kimi-plugin/plugin.json` reaches
+byte-exactness with this fix alone.
+
+## Finding 3: claude-code's hardcoded field order didn't match superpowers' real files
+
+**Where:** `src/adapters/claude-code.ts`, `pluginManifest()` and
+`marketplaceManifest()`.
+
+**How it was found:** not part of the original Task 6 audit — Findings 1 and
+2 above were the only two `EXPECTED_DIFFERENCES` entries masking genuine
+gaps; the other two entries (`.claude-plugin/plugin.json` / `hooks` and
+`.cursor-plugin/plugin.json` / `hooks`) were DESIGNED differences, not
+findings. Once `bootstrap.emitHooks: false` (Task 2 of the
+2026-08-12-respect-user-hooks plan) closed the `hooks`-pointer differences
+and Finding 1/2's fixes closed the other two, emptying
+`EXPECTED_DIFFERENCES` moved `.claude-plugin/plugin.json` and
+`.claude-plugin/marketplace.json` from the deep-equal-only comparison group
+into the byte-for-byte group for the first time. That surfaced a third,
+previously-undocumented gap: both files' *values* were already correct
+(the deep-equal assertions had passed all along, since JSON deep-equality is
+order-insensitive), but their top-level *key order* didn't match
+superpowers' hand-written files.
+
+`pluginManifest()` built `name, version, description, author, license,
+repository, homepage, keywords`; superpowers' real
+`.claude-plugin/plugin.json` uses `name, description, version, author,
+homepage, repository, license, keywords`. `marketplaceManifest()` always
+appended `owner` after `plugins`; superpowers' real
+`.claude-plugin/marketplace.json` places `owner` before `plugins`. Per
+`git show b3e99ca`, this order was deliberately chosen only to keep
+*everyharness's own generated output* byte-identical across a refactor
+("verified via the full suite... snapshot unchanged") — it had never been
+checked against superpowers' real files, because neither file had
+previously been in the dogfood test's byte-exact group.
+
+None of the three config-level mechanisms (`bootstrap.emitHooks`,
+`marketplace.description`, `harnesses.overrides`) can fix this: `deepMerge`
+only ever sets, recursively merges, or deletes keys — it never reorders keys
+already present in the base object — and `marketplaceManifest()` has no
+`deepMerge`/override step applied to it at all. Reordering required an
+adapter-code change, which was out of the original Task 3 brief's scope; it
+was escalated as BLOCKED and authorized as Task 4 of the
+2026-08-12-respect-user-hooks plan.
+
+### Resolution (2026-08-12)
+
+Fixed by commit `ef53d66` ("fix: claude-code manifest key order matches the
+canonical hand-written files"): reordered `pluginManifest()`'s object
+construction to `name, description, version, author, homepage, repository,
+license, keywords` and `marketplaceManifest()`'s to set `owner` before
+`plugins`, each with a comment naming superpowers' hand-written manifests as
+the canonical order. Scoped to claude-code.ts only — `baseManifestFields()`
+and every other adapter (cursor, codex, devin, kimi) were already
+byte-exact with the existing shared order and were left untouched. The
+kitchen-sink snapshot's two claude-code entries updated accordingly; every
+other snapshot entry stayed byte-identical.
+
 ## Status
 
-Both findings are backlog for Plan 5 or later — reported per Task 6's
-process rule, not fixed in Plan 4. `tests/dogfood.test.ts`'s
-`EXPECTED_DIFFERENCES` map continues to document and tolerate both until
-one of the fixes above (or an equivalent) lands.
+All three findings are fixed as of this branch (2026-08-12). The dogfood
+test's `EXPECTED_DIFFERENCES` map (`tests/dogfood.test.ts`) is now empty,
+and all eight of superpowers' hand-maintained manifests regenerate
+byte-for-byte.
