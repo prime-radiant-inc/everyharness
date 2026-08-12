@@ -75,14 +75,22 @@ market_name() {
   fi
 }
 
-# True (0) only when the descriptor's first plugin entry declares the local
-# source `"./"`. Any other value — notably the object form ({source:url,url})
-# that a repository/http descriptor emits — is non-local and would make a real
-# install attempt a network clone, which the offline container forbids.
-market_source_is_local() {
-  local descriptor="$1" source
-  source=$(jq -r '.plugins[0].source' "$descriptor" 2>/dev/null)
-  [ "$source" = "./" ]
+# A publishable descriptor points its source at the repository, which cannot
+# be fetched in an offline container. Rewrite the source to "./" in the
+# THROWAWAY copy so the local install path works; everything else about the
+# descriptor (name, entry, category, keywords, strict) stays as generated.
+# Container-only accommodation — the author's tree is never touched.
+rewrite_market_source_local() {
+  local mk="$WORK/.claude-plugin/marketplace.json"
+  [ -f "$mk" ] || return 0
+  local tmp="$mk.tmp"
+  if jq '(.plugins[]? | .source) = "./"' "$mk" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$mk"
+    MARKET_REWRITE_OK=1
+  else
+    rm -f "$tmp"
+    MARKET_REWRITE_OK=0
+  fi
 }
 
 # True (0) only if EVERY one of the plugin's skills (SKILL_NAMES, set by
@@ -263,20 +271,15 @@ check_manifest_harness() {
 # on a dev host outside the container (which is how the unit tests exercise it).
 
 # claude-code and copilot install THROUGH the emitted .claude-plugin
-# descriptor; when its entry source isn't the local "./" (a repository/http
-# descriptor, whose source is an object), a real install would try to clone
-# that source, which the offline container can't reach. Emit a skip (never a
-# failure) and signal the caller to bail in that case. Other harnesses install
-# through their own descriptors (codex: .agents/plugins/marketplace.json, always
-# local) or a direct path, so they're unaffected.
-skip_if_nonlocal_source() {
-  local harness="$1"
-  if ! market_source_is_local "$PLUGIN_ROOT/.claude-plugin/marketplace.json"; then
-    skip "$harness" 'marketplace entry source is not local; offline install check needs source "./"'
-    return 0
-  fi
-  return 1
-}
+# descriptor; deep_checks() rewrites its entry source to the local "./" form
+# in the throwaway $WORK copy (rewrite_market_source_local, above) before
+# these run, so a repository/http-sourced descriptor installs offline instead
+# of needing a network clone. deep_claude_code/deep_copilot skip (never fail)
+# only when that rewrite itself failed — MARKET_REWRITE_OK is 0 only for a
+# malformed marketplace.json, which still deserves a report rather than a
+# silent pass. Other harnesses install through their own descriptors (codex:
+# .agents/plugins/marketplace.json, always local) or a direct path, so
+# they're unaffected.
 
 # --- install-claude-code: install from the emitted dev marketplace, then read
 # the component inventory the CLI itself reports.
@@ -286,7 +289,7 @@ deep_claude_code() {
     skip "$harness" "claude not on PATH"
     return
   fi
-  skip_if_nonlocal_source "$harness" && return
+  [ "$MARKET_REWRITE_OK" = 1 ] || { skip "$harness" "marketplace.json could not be rewritten for offline install (malformed descriptor)"; return; }
   local out
   out=$(cd "$WORK" && claude plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         claude plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -352,7 +355,7 @@ deep_copilot() {
     skip "$harness" "copilot not on PATH"
     return
   fi
-  skip_if_nonlocal_source "$harness" && return
+  [ "$MARKET_REWRITE_OK" = 1 ] || { skip "$harness" "marketplace.json could not be rewritten for offline install (malformed descriptor)"; return; }
   local out
   out=$(cd "$WORK" && copilot plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         copilot plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -583,6 +586,11 @@ deep_checks() {
   WORK="$DEEP_TMP/plugin-copy"
   NEUTRAL="$DEEP_TMP/neutral"
   cp -r "$PLUGIN_ROOT" "$WORK"
+  # See rewrite_market_source_local() above: makes the copy installable
+  # offline regardless of the configured marketplace.source. Must run before
+  # the git snapshot below — codex/droid/hermes install by cloning it.
+  MARKET_REWRITE_OK=1
+  rewrite_market_source_local
   mkdir -p "$NEUTRAL"
   git -C "$WORK" init -q
   git -C "$WORK" add -A >/dev/null 2>&1

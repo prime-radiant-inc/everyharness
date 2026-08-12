@@ -254,29 +254,67 @@ describe('checks/run-checks.sh', () => {
     expect(missing.stdout).toBe('fallback-dev')
   })
 
-  // Sources the real market_source_is_local() out of the script. A local `./`
-  // entry source means an offline install can proceed; any other form (an
-  // object source for a repository/http descriptor) would make the install
-  // attempt a network clone, so the claude/codex/copilot checks must skip.
-  it('market_source_is_local() is true for source "./" and false for an object (repository) source', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'eh-market-src-'))
-    const localFile = join(dir, 'local.json')
-    const repoFile = join(dir, 'repo.json')
-    writeFileSync(localFile, JSON.stringify({ plugins: [{ source: './' }] }))
-    writeFileSync(repoFile, JSON.stringify({ plugins: [{ source: { source: 'url', url: 'https://x/y' } }] }))
-
-    const probe = (path: string) =>
+  // Sources the real rewrite_market_source_local() out of the script. It
+  // rewrites every entry source in $WORK/.claude-plugin/marketplace.json to
+  // the local "./" form so claude-code/copilot can install offline from the
+  // throwaway git-repo copy, regardless of what marketplace.source the config
+  // declared (repository/http produce Claude Code's {source:url,url} object,
+  // which a real install would otherwise try to network-clone).
+  // MARKET_REWRITE_OK records success so callers can skip (not silently pass)
+  // on a malformed descriptor.
+  it('rewrite_market_source_local() rewrites an object source to "./", flags invalid JSON, and no-ops when the file is absent', () => {
+    const runRewrite = (workDir: string) =>
       spawnSync(
         'bash',
         [
           '-c',
-          `source <(sed -n "/^market_source_is_local()/,/^}/p" "${CHECKS_SCRIPT}"); market_source_is_local "${path}" && echo local || echo nonlocal`,
+          `source <(sed -n "/^rewrite_market_source_local()/,/^}/p" "${CHECKS_SCRIPT}"); MARKET_REWRITE_OK=1; rewrite_market_source_local; echo "$MARKET_REWRITE_OK"`,
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', env: { ...process.env, WORK: workDir } },
       )
 
-    expect(probe(localFile).stdout.trim()).toBe('local')
-    expect(probe(repoFile).stdout.trim()).toBe('nonlocal')
+    // (a) an object (repository) source is rewritten to "./"; the rest of the
+    // entry (name, strict, keywords) survives untouched.
+    const dirA = mkdtempSync(join(tmpdir(), 'eh-rewrite-a-'))
+    mkdirSync(join(dirA, '.claude-plugin'))
+    const marketA = join(dirA, '.claude-plugin', 'marketplace.json')
+    writeFileSync(
+      marketA,
+      JSON.stringify({
+        name: 'kitchen-sink-market',
+        plugins: [
+          {
+            name: 'kitchen-sink',
+            source: { source: 'url', url: 'https://github.com/prime-radiant-inc/everyharness' },
+            strict: true,
+            keywords: ['demo', 'fixture'],
+          },
+        ],
+      }),
+    )
+    const resultA = runRewrite(dirA)
+    expect(resultA.status).toBe(0)
+    expect(resultA.stdout.trim()).toBe('1')
+    const rewritten = JSON.parse(readFileSync(marketA, 'utf8'))
+    expect(rewritten.plugins[0].source).toBe('./')
+    expect(rewritten.plugins[0].name).toBe('kitchen-sink')
+    expect(rewritten.plugins[0].strict).toBe(true)
+    expect(rewritten.plugins[0].keywords).toEqual(['demo', 'fixture'])
+
+    // (b) invalid JSON sets MARKET_REWRITE_OK=0 (skip, not a silent pass).
+    const dirB = mkdtempSync(join(tmpdir(), 'eh-rewrite-b-'))
+    mkdirSync(join(dirB, '.claude-plugin'))
+    writeFileSync(join(dirB, '.claude-plugin', 'marketplace.json'), '{not valid json')
+    const resultB = runRewrite(dirB)
+    expect(resultB.status).toBe(0)
+    expect(resultB.stdout.trim()).toBe('0')
+
+    // (c) a missing file leaves MARKET_REWRITE_OK at its pre-set 1 (no
+    // descriptor to rewrite is not a failure).
+    const dirC = mkdtempSync(join(tmpdir(), 'eh-rewrite-c-'))
+    const resultC = runRewrite(dirC)
+    expect(resultC.status).toBe(0)
+    expect(resultC.stdout.trim()).toBe('1')
   })
 
   // Runs the script directly (no container) against a generated kitchen-sink
