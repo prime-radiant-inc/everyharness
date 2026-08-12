@@ -75,14 +75,22 @@ market_name() {
   fi
 }
 
-# True (0) only when the descriptor's first plugin entry declares the local
-# source `"./"`. Any other value — notably the object form ({source:url,url})
-# that a repository/http descriptor emits — is non-local and would make a real
-# install attempt a network clone, which the offline container forbids.
-market_source_is_local() {
-  local descriptor="$1" source
-  source=$(jq -r '.plugins[0].source' "$descriptor" 2>/dev/null)
-  [ "$source" = "./" ]
+# A publishable descriptor points its source at the repository, which cannot
+# be fetched in an offline container. Rewrite the source to "./" in the
+# THROWAWAY copy so the local install path works; everything else about the
+# descriptor (name, entry, category, keywords, strict) stays as generated.
+# Container-only accommodation — the author's tree is never touched.
+rewrite_market_source_local() {
+  local mk="$WORK/.claude-plugin/marketplace.json"
+  [ -f "$mk" ] || return 0
+  local tmp="$mk.tmp"
+  if jq '(.plugins[]? | .source) = "./"' "$mk" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$mk"
+    MARKET_REWRITE_OK=1
+  else
+    rm -f "$tmp"
+    MARKET_REWRITE_OK=0
+  fi
 }
 
 # True (0) only if EVERY one of the plugin's skills (SKILL_NAMES, set by
@@ -263,20 +271,15 @@ check_manifest_harness() {
 # on a dev host outside the container (which is how the unit tests exercise it).
 
 # claude-code and copilot install THROUGH the emitted .claude-plugin
-# descriptor; when its entry source isn't the local "./" (a repository/http
-# descriptor, whose source is an object), a real install would try to clone
-# that source, which the offline container can't reach. Emit a skip (never a
-# failure) and signal the caller to bail in that case. Other harnesses install
-# through their own descriptors (codex: .agents/plugins/marketplace.json, always
-# local) or a direct path, so they're unaffected.
-skip_if_nonlocal_source() {
-  local harness="$1"
-  if ! market_source_is_local "$PLUGIN_ROOT/.claude-plugin/marketplace.json"; then
-    skip "$harness" 'marketplace entry source is not local; offline install check needs source "./"'
-    return 0
-  fi
-  return 1
-}
+# descriptor; deep_checks() rewrites its entry source to the local "./" form
+# in the throwaway $WORK copy (rewrite_market_source_local, above) before
+# these run, so a repository/http-sourced descriptor installs offline instead
+# of needing a network clone. deep_claude_code/deep_copilot skip (never fail)
+# only when that rewrite itself failed — MARKET_REWRITE_OK is 0 only for a
+# malformed marketplace.json, which still deserves a report rather than a
+# silent pass. Other harnesses install through their own descriptors (codex:
+# .agents/plugins/marketplace.json, always local) or a direct path, so
+# they're unaffected.
 
 # --- install-claude-code: install from the emitted dev marketplace, then read
 # the component inventory the CLI itself reports.
@@ -286,7 +289,7 @@ deep_claude_code() {
     skip "$harness" "claude not on PATH"
     return
   fi
-  skip_if_nonlocal_source "$harness" && return
+  [ "$MARKET_REWRITE_OK" = 1 ] || { skip "$harness" "marketplace.json could not be rewritten for offline install (malformed descriptor)"; return; }
   local out
   out=$(cd "$WORK" && claude plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         claude plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -352,7 +355,7 @@ deep_copilot() {
     skip "$harness" "copilot not on PATH"
     return
   fi
-  skip_if_nonlocal_source "$harness" && return
+  [ "$MARKET_REWRITE_OK" = 1 ] || { skip "$harness" "marketplace.json could not be rewritten for offline install (malformed descriptor)"; return; }
   local out
   out=$(cd "$WORK" && copilot plugin marketplace add "$WORK" >/dev/null 2>&1 &&
         copilot plugin install "${PLUGIN_NAME}@${MARKET}" >/dev/null 2>&1 &&
@@ -536,6 +539,93 @@ TS
   fi
 }
 
+# Lists every executable regular file under the plugin's skills tree, one per
+# line, as a path relative to the plugin root ($1). This IS the source-tree
+# truth the exec-bit sweep is built on: a skill can ship a script, and if any
+# install path drops its mode bit the skill dies with "Permission denied"
+# while every other check stays green (issue #9). Empty output (no skills tree,
+# or no executables) is normal — most plugins ship none.
+discover_exec_skill_files() {
+  local root="$1" skills_root="$1/skills" abs
+  [ -d "$skills_root" ] || return 0
+  find "$skills_root" -type f -perm -u+x 2>/dev/null | sort |
+    while IFS= read -r abs; do
+      printf '%s\n' "${abs#"$root"/}"
+    done
+}
+
+# --- exec-bits: assert every executable skill file keeps its mode bit through
+# staging and through each harness's real install. Reuses the installs the
+# per-harness deep checks already performed this run, so deep_checks calls it
+# AFTER them. Locates each installed copy by matching a known relative path
+# (the first discovered executable), never a hardcoded version/hash-suffixed
+# cache dir. opencode and pi are intentionally absent: opencode loads the
+# plugin in place and pi runs the emitted TS directly, so neither produces an
+# installed copy whose mode bits could differ from the staged baseline.
+exec_bits_harness() {
+  local harness="$1" cli="$2" root="$3" first_rel="$4"
+  if ! command -v "$cli" >/dev/null 2>&1; then
+    skip "exec-bits-$harness" "$cli not on PATH"
+    return
+  fi
+  local hit inst_root
+  hit=$(find "$root" -type f -path "*/$first_rel" 2>/dev/null | head -n1)
+  if [ -z "$hit" ]; then
+    skip "exec-bits-$harness" "no installed copy found under $root"
+    return
+  fi
+  inst_root="${hit%/"$first_rel"}"
+  local rel
+  local lost=()
+  for rel in "${EXEC_FILES[@]}"; do
+    { [ -f "$inst_root/$rel" ] && [ -x "$inst_root/$rel" ]; } || lost+=("$rel")
+  done
+  if [ "${#lost[@]}" -eq 0 ]; then
+    ok "exec-bits-$harness" "every executable skill file survived at $inst_root"
+  else
+    not_ok "exec-bits-$harness" "lost the executable bit: $(oneline "${lost[*]}")"
+  fi
+}
+
+deep_exec_bits() {
+  EXEC_FILES=()
+  local rel
+  while IFS= read -r rel; do
+    [ -n "$rel" ] && EXEC_FILES+=("$rel")
+  done < <(discover_exec_skill_files "$PLUGIN_ROOT")
+
+  if [ "${#EXEC_FILES[@]}" -eq 0 ]; then
+    skip exec-bits "plugin ships no executable skill files"
+    return
+  fi
+
+  # Source baseline first: the staged copy $WORK is what every install actually
+  # came from, so a bit lost there poisons the whole sweep — report it and stop
+  # rather than running per-harness checks against a broken baseline.
+  local lost=()
+  for rel in "${EXEC_FILES[@]}"; do
+    [ -x "$WORK/$rel" ] || lost+=("$rel")
+  done
+  if [ "${#lost[@]}" -gt 0 ]; then
+    not_ok exec-bits-source "executable bit missing in the staged copy: $(oneline "${lost[*]}")"
+    return
+  fi
+  ok exec-bits-source "every executable skill file is executable in the staged copy (${#EXEC_FILES[@]} file(s))"
+
+  local first="${EXEC_FILES[0]}"
+  exec_bits_harness claude-code claude "$HOME/.claude/plugins" "$first"
+  exec_bits_harness gemini gemini "$HOME/.gemini/extensions" "$first"
+  exec_bits_harness codex codex "$HOME/.codex/plugins" "$first"
+  exec_bits_harness copilot copilot "$HOME/.copilot/installed-plugins" "$first"
+  exec_bits_harness droid droid "$HOME/.factory/plugins" "$first"
+  exec_bits_harness grok grok "$HOME/.grok/installed-plugins" "$first"
+  exec_bits_harness hermes hermes "$HOME/.hermes/plugins" "$first"
+
+  # kimi installs only through its TUI (see install-kimi note above), so no
+  # on-disk copy is produced by this offline run.
+  skip exec-bits-kimi "install is TUI-only"
+}
+
 # Drives the deep tier: resolve the plugin name and skill set, stage a
 # writable git-repo copy, and run each harness check. Called after the shallow
 # checks so both share the FAILED/exit-3 accounting.
@@ -583,6 +673,11 @@ deep_checks() {
   WORK="$DEEP_TMP/plugin-copy"
   NEUTRAL="$DEEP_TMP/neutral"
   cp -r "$PLUGIN_ROOT" "$WORK"
+  # See rewrite_market_source_local() above: makes the copy installable
+  # offline regardless of the configured marketplace.source. Must run before
+  # the git snapshot below — codex/droid/hermes install by cloning it.
+  MARKET_REWRITE_OK=1
+  rewrite_market_source_local
   mkdir -p "$NEUTRAL"
   git -C "$WORK" init -q
   git -C "$WORK" add -A >/dev/null 2>&1
@@ -610,6 +705,10 @@ deep_checks() {
   skip install-kimi "install is TUI-only; verified by hand via tmux (see comment above)"
   skip install-cursor "cursor-agent requires login before it will load a plugin"
   skip install-devin "no devin CLI exists in the image"
+
+  # Runs last: reuses the installs the per-harness deep checks above performed
+  # to assert executable skill scripts kept their mode bit end to end (#9).
+  deep_exec_bits
 }
 
 check_claude_code

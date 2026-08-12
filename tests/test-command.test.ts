@@ -254,29 +254,67 @@ describe('checks/run-checks.sh', () => {
     expect(missing.stdout).toBe('fallback-dev')
   })
 
-  // Sources the real market_source_is_local() out of the script. A local `./`
-  // entry source means an offline install can proceed; any other form (an
-  // object source for a repository/http descriptor) would make the install
-  // attempt a network clone, so the claude/codex/copilot checks must skip.
-  it('market_source_is_local() is true for source "./" and false for an object (repository) source', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'eh-market-src-'))
-    const localFile = join(dir, 'local.json')
-    const repoFile = join(dir, 'repo.json')
-    writeFileSync(localFile, JSON.stringify({ plugins: [{ source: './' }] }))
-    writeFileSync(repoFile, JSON.stringify({ plugins: [{ source: { source: 'url', url: 'https://x/y' } }] }))
-
-    const probe = (path: string) =>
+  // Sources the real rewrite_market_source_local() out of the script. It
+  // rewrites every entry source in $WORK/.claude-plugin/marketplace.json to
+  // the local "./" form so claude-code/copilot can install offline from the
+  // throwaway git-repo copy, regardless of what marketplace.source the config
+  // declared (repository/http produce Claude Code's {source:url,url} object,
+  // which a real install would otherwise try to network-clone).
+  // MARKET_REWRITE_OK records success so callers can skip (not silently pass)
+  // on a malformed descriptor.
+  it('rewrite_market_source_local() rewrites an object source to "./", flags invalid JSON, and no-ops when the file is absent', () => {
+    const runRewrite = (workDir: string) =>
       spawnSync(
         'bash',
         [
           '-c',
-          `source <(sed -n "/^market_source_is_local()/,/^}/p" "${CHECKS_SCRIPT}"); market_source_is_local "${path}" && echo local || echo nonlocal`,
+          `source <(sed -n "/^rewrite_market_source_local()/,/^}/p" "${CHECKS_SCRIPT}"); MARKET_REWRITE_OK=1; rewrite_market_source_local; echo "$MARKET_REWRITE_OK"`,
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', env: { ...process.env, WORK: workDir } },
       )
 
-    expect(probe(localFile).stdout.trim()).toBe('local')
-    expect(probe(repoFile).stdout.trim()).toBe('nonlocal')
+    // (a) an object (repository) source is rewritten to "./"; the rest of the
+    // entry (name, strict, keywords) survives untouched.
+    const dirA = mkdtempSync(join(tmpdir(), 'eh-rewrite-a-'))
+    mkdirSync(join(dirA, '.claude-plugin'))
+    const marketA = join(dirA, '.claude-plugin', 'marketplace.json')
+    writeFileSync(
+      marketA,
+      JSON.stringify({
+        name: 'kitchen-sink-market',
+        plugins: [
+          {
+            name: 'kitchen-sink',
+            source: { source: 'url', url: 'https://github.com/prime-radiant-inc/everyharness' },
+            strict: true,
+            keywords: ['demo', 'fixture'],
+          },
+        ],
+      }),
+    )
+    const resultA = runRewrite(dirA)
+    expect(resultA.status).toBe(0)
+    expect(resultA.stdout.trim()).toBe('1')
+    const rewritten = JSON.parse(readFileSync(marketA, 'utf8'))
+    expect(rewritten.plugins[0].source).toBe('./')
+    expect(rewritten.plugins[0].name).toBe('kitchen-sink')
+    expect(rewritten.plugins[0].strict).toBe(true)
+    expect(rewritten.plugins[0].keywords).toEqual(['demo', 'fixture'])
+
+    // (b) invalid JSON sets MARKET_REWRITE_OK=0 (skip, not a silent pass).
+    const dirB = mkdtempSync(join(tmpdir(), 'eh-rewrite-b-'))
+    mkdirSync(join(dirB, '.claude-plugin'))
+    writeFileSync(join(dirB, '.claude-plugin', 'marketplace.json'), '{not valid json')
+    const resultB = runRewrite(dirB)
+    expect(resultB.status).toBe(0)
+    expect(resultB.stdout.trim()).toBe('0')
+
+    // (c) a missing file leaves MARKET_REWRITE_OK at its pre-set 1 (no
+    // descriptor to rewrite is not a failure).
+    const dirC = mkdtempSync(join(tmpdir(), 'eh-rewrite-c-'))
+    const resultC = runRewrite(dirC)
+    expect(resultC.status).toBe(0)
+    expect(resultC.stdout.trim()).toBe('1')
   })
 
   // Runs the script directly (no container) against a generated kitchen-sink
@@ -390,6 +428,84 @@ describe('checks/run-checks.sh', () => {
     }
     expect(result.status).toBe(0)
   })
+
+  // --- exec-bit preservation sweep (#9) ----------------------------------
+  // A skill can ship an executable script; if any harness's install path
+  // drops its mode bit the skill dies with "Permission denied" while every
+  // other check stays green. deep_exec_bits() discovers every executable file
+  // under skills/, verifies the staged copy kept the bit, then reuses each
+  // per-harness install to assert the installed copy kept it too.
+
+  // Sources the real discovery helper out of the script (not a copy) and runs
+  // it against a tree with one executable and one non-executable skill file:
+  // only the executable one is listed, as a path relative to the plugin root.
+  it('discover_exec_skill_files() lists executable skill files and ignores non-executable ones', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-exec-discover-'))
+    mkdirSync(join(dir, 'skills', 'greeting', 'scripts'), { recursive: true })
+    const exec = join(dir, 'skills', 'greeting', 'scripts', 'hello.sh')
+    writeFileSync(exec, '#!/usr/bin/env bash\necho hello\n')
+    chmodSync(exec, 0o755)
+    const plain = join(dir, 'skills', 'greeting', 'SKILL.md')
+    writeFileSync(plain, 'plain\n')
+    chmodSync(plain, 0o644)
+
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        `source <(sed -n "/^discover_exec_skill_files()/,/^}/p" "${CHECKS_SCRIPT}"); discover_exec_skill_files "${dir}"`,
+      ],
+      { encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe('skills/greeting/scripts/hello.sh')
+  })
+
+  // A plugin that ships no executable skill files pays exactly one line — the
+  // documented single skip — and does no per-harness exec-bit work. Built by
+  // stripping the fixture's hello.sh of its mode bit after generation.
+  it('emits exactly one "skip exec-bits:" line when the plugin ships no executable skill files', () => {
+    const dir = generatedKitchenSink()
+    chmodSync(join(dir, 'skills', 'greeting', 'scripts', 'hello.sh'), 0o644)
+    const result = spawnSync('bash', [CHECKS_SCRIPT], {
+      encoding: 'utf8',
+      env: {
+        EH_PLUGIN_NAME: 'kitchen-sink',
+        EH_PLUGIN_ROOT: dir,
+        PATH: sandboxBin(),
+        HOME: mkdtempSync(join(tmpdir(), 'eh-home-')),
+      },
+    })
+    const execLines = result.stdout.split('\n').filter((l) => l.includes('exec-bits'))
+    expect(execLines).toEqual(['skip exec-bits: plugin ships no executable skill files'])
+    expect(result.status).toBe(0)
+  }, 30_000)
+
+  // With the kitchen-sink fixture (which now ships an executable hello.sh) and
+  // no harness CLI on PATH: the source baseline passes (the staged copy kept
+  // the bit) and every per-harness check degrades to a CLI-absent skip,
+  // staying exit 0. kimi is skipped as TUI-only; opencode and pi emit no
+  // exec-bits line at all (they don't install by copy).
+  it('reports ok exec-bits-source plus CLI-absent per-harness skips against the fixture that ships an executable skill script', () => {
+    const dir = generatedKitchenSink()
+    const result = spawnSync('bash', [CHECKS_SCRIPT], {
+      encoding: 'utf8',
+      env: {
+        EH_PLUGIN_NAME: 'kitchen-sink',
+        EH_PLUGIN_ROOT: dir,
+        PATH: sandboxBin(),
+        HOME: mkdtempSync(join(tmpdir(), 'eh-home-')),
+      },
+    })
+    expect(result.stdout).toMatch(/^ok exec-bits-source: /m)
+    for (const harness of ['claude-code', 'gemini', 'codex', 'copilot', 'droid', 'grok', 'hermes']) {
+      expect(result.stdout).toMatch(new RegExp(`^skip exec-bits-${harness}: `, 'm'))
+    }
+    expect(result.stdout).toMatch(/^skip exec-bits-kimi: install is TUI-only/m)
+    expect(result.stdout).not.toMatch(/^(ok|skip|not ok) exec-bits-(opencode|pi):/m)
+    expect(result.stdout).not.toMatch(/^not ok /m)
+    expect(result.status).toBe(0)
+  }, 30_000)
 })
 
 describe('CLI test command e2e', () => {
