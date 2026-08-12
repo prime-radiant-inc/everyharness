@@ -71,6 +71,18 @@ describe('deepMerge', () => {
   it('replaces non-object base with nested null delete', () => {
     expect(deepMerge({ a: 1 }, { a: { b: null } })).toEqual({ a: {} })
   })
+
+  it('strips nested nulls when the parent key is absent from base', () => {
+    expect(deepMerge({}, { a: { b: null, c: 1 } })).toEqual({ a: { c: 1 } })
+  })
+
+  it('strips deeply nested nulls when no ancestor key exists in base', () => {
+    expect(deepMerge({}, { a: { b: { c: null, d: 1 } } })).toEqual({ a: { b: { d: 1 } } })
+  })
+
+  it('leaves nulls inside arrays untouched — arrays are opaque to the sentinel', () => {
+    expect(deepMerge({}, { a: [null, 1] })).toEqual({ a: [null, 1] })
+  })
 })
 
 describe('manifest + drift', () => {

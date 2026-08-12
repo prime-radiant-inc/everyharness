@@ -76,9 +76,9 @@ harnesses:
       repository: null         # special: null deletes the inherited field
 ```
 
-Overrides are deeply merged with corresponding top-level config fields. In the example above, `repository: null` uses the **delete sentinel** to remove the inherited `repository` field from the kimi manifest — essential when a field is required for some harnesses but must be absent in others (e.g., kimi's plugin.json format doesn't include `repository`, while claude-code's does).
+In the example above, `repository: null` uses the **delete sentinel** to remove the inherited `repository` field from the kimi manifest — essential when a field is required for some harnesses but must be absent in others (e.g., kimi's plugin.json format doesn't include `repository`, while claude-code's does).
 
-Note: A literal `null` cannot be set as a value via overrides; `null` is reserved as a delete sentinel. If you need a null value in the generated manifest, emit it via an adapter's custom field logic instead.
+Note: A literal `null` cannot be set as an object field's value via overrides, at any nesting depth; `null` is always treated as a delete sentinel. If you need a null value in the generated manifest, emit it via an adapter's custom field logic instead. (Arrays are replaced wholesale, so a `null` entry inside an array passes through unaffected.)
 
 ### `bump`
 

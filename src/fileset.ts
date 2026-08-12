@@ -38,28 +38,26 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  * - If both base and override values are plain objects, recurse.
  * - Otherwise, replace the base value with the override value.
  *
+ * Null-stripping applies at every depth, even where base has no corresponding
+ * key: a missing key recurses against an empty object rather than adopting the
+ * override subtree verbatim, so a `null` nested arbitrarily deep is always
+ * treated as a delete sentinel. Arrays are opaque to the sentinel — they
+ * replace the base value wholesale, so `null` entries inside an array survive.
+ *
  * Note: A literal null can no longer be set via overrides as a value; `null` is
  * treated as a delete sentinel. This is a deliberate trade-off to enable removal
  * of inherited fields.
  */
 export function deepMerge(base: unknown, override: unknown): unknown {
-  // If override is not an object, just return it
   if (!isPlainObject(override)) return override
 
-  // Override is a plain object; start with base if it's also a plain object
-  let out: Record<string, unknown>
-  if (isPlainObject(base)) {
-    out = { ...base }
-  } else {
-    out = {}
-  }
+  const out: Record<string, unknown> = isPlainObject(base) ? { ...base } : {}
 
-  // Process override keys, applying null delete logic
   for (const [key, value] of Object.entries(override)) {
     if (value === null) {
       delete out[key]
     } else {
-      out[key] = key in out ? deepMerge(out[key], value) : value
+      out[key] = deepMerge(out[key], value)
     }
   }
   return out
