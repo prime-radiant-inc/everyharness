@@ -258,4 +258,45 @@ describe('loadConfig', () => {
       '  source: ftp://x',
     ].join('\n')))).toThrow()
   })
+
+  it('accepts the bump key', () => {
+    const cfg = loadConfig(repoWith([
+      'name: demo',
+      'version: 1.0.0',
+      'description: A demo plugin',
+      'bump:',
+      '  files:',
+      '    - path: package.json',
+      '      field: version',
+      '  audit:',
+      '    exclude: [CHANGELOG.md]',
+    ].join('\n')))
+    expect(cfg.bump?.files).toEqual([{ path: 'package.json', field: 'version' }])
+    expect(cfg.bump?.audit?.exclude).toEqual(['CHANGELOG.md'])
+  })
+
+  it('leaves bump undefined when absent', () => {
+    const cfg = loadConfig(repoWith(
+      'name: demo\nversion: 1.0.0\ndescription: A demo plugin\n'
+    ))
+    expect(cfg.bump).toBeUndefined()
+  })
+
+  it('rejects a bump.files path that traverses out of the plugin root', () => {
+    expect(() => loadConfig(repoWith([
+      'name: demo',
+      'version: 1.0.0',
+      'description: A demo plugin',
+      'bump:',
+      '  files:',
+      '    - path: ../x.json',
+      '      field: version',
+    ].join('\n')))).toThrowError(ConfigError)
+  })
+
+  it('rejects a bump.files path with shell metacharacters', () => {
+    expect(() => loadConfig(repoWith(
+      'name: demo\nversion: 1.0.0\ndescription: A demo plugin\nbump:\n  files:\n    - path: \'weird"dir/x.json\'\n      field: version\n'
+    ))).toThrowError(ConfigError)
+  })
 })
