@@ -62,6 +62,23 @@ describe('CLI end-to-end', () => {
     expect(result.stdout).toContain('validate: clean')
   })
 
+  it('validate exits 1 with the same config-error message as generate when everyharness.yaml is v1 syntax (issue #10)', () => {
+    const dir = tmpPluginDir()
+    runCli(['generate'], dir)
+    const yamlPath = join(dir, 'everyharness.yaml')
+    const yaml = readFileSync(yamlPath, 'utf8')
+    writeFileSync(yamlPath, yaml.replace('bootstrap:\n  skill: using-kitchen-sink', 'bootstrap:\n  generate: true'))
+
+    const validateResult = runCli(['validate'], dir)
+    expect(validateResult.status).toBe(1)
+    expect(validateResult.stderr).toContain('error:')
+    expect(validateResult.stderr).toMatch(/bootstrap is now a tagged value/)
+
+    const generateResult = runCli(['generate'], dir)
+    expect(generateResult.status).toBe(1)
+    expect(generateResult.stderr).toBe(validateResult.stderr)
+  })
+
   it('prints one "pruned: <path>" line per removed file before the summary count line', () => {
     const dir = tmpPluginDir()
     runCli(['generate'], dir)
