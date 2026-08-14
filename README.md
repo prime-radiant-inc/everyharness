@@ -7,6 +7,8 @@
 
 Generate a coding-agent plugin for every harness from one config file.
 
+What it is and who it's for: [docs/BROCHURE.md](docs/BROCHURE.md).
+
 The goal: one `everyharness.yaml` as the source of truth, with
 `everyharness generate` emitting native plugin manifests, bootstrap wiring,
 docs, and tests for every supported coding-agent harness (Claude Code, Codex,
