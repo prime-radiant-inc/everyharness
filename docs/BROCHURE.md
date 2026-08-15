@@ -2,9 +2,10 @@
 
 Generate a coding-agent plugin for every harness from one config file.
 
-> **Status: pre-alpha.** Interfaces, the `everyharness.yaml` schema, and the
-> generated formats may change without notice (README, top warning). Read this
-> page as a preview of where the tool is headed and what already works today.
+> **Status: v1.0.0.** The v1 feature set is complete, and the
+> `everyharness.yaml` schema and generation-manifest format are stable as of
+> 1.0 (README, top note). The package is not yet on npm; install is
+> clone-and-build (Getting started).
 
 ## What you get
 
@@ -56,9 +57,10 @@ and generates the rest:
 
 ## Using it
 
-Real session, from a clean directory named `demo-plugin` (`init` names the
-plugin after its directory: `src/init.ts`, `init`). everyharness is
-unpublished, so the CLI runs from a built checkout; see Getting started:
+Real session with everyharness 1.0.0, from a clean directory named
+`demo-plugin` (`init` names the plugin after its directory: `src/init.ts`,
+`init`). everyharness is unpublished, so the CLI runs from a built checkout;
+see Getting started:
 
 ```
 $ node everyharness/dist/cli.js init
@@ -113,17 +115,17 @@ maintainers who want manifest drift caught by CI instead of by bug reports.
 
 A plugin that targets one harness and will stay there is better served by its
 single hand-written manifest; this tool earns its keep at two harnesses and
-up. Teams that need a stable interface today should wait: the project is
-pre-alpha and says so (README, top warning).
+up. Teams that want `npm install everyharness` should wait: the package is
+not yet on the registry, so every install is a clone-and-build (README, top
+note).
 
 ## Limitations
 
 Each limitation is tagged with who bears it: the plugin author using the
 tool, or the maintainer running its guardrails.
 
-- **(author)** Pre-alpha. The config schema and generated formats may change
-  without notice, and the package is unpublished on npm, so every install is a
-  clone-and-build (README, top warning).
+- **(author)** Unpublished on npm. Every install is a clone-and-build until
+  the package reaches the registry (README, top note).
 - **(maintainer)** `everyharness test` needs Docker and pulls
   `ghcr.io/prime-radiant-inc/everyharness-container`, a ~15 GB linux/amd64
   image, on first use (README, `everyharness test` section).
@@ -164,4 +166,4 @@ unpublished status on the npm registry. -->
 
 ---
 <!-- doc-audit:last-reviewed -->
-_Last reviewed: 2026-08-13 · commit `e8dccc8` · verified against code (2 claims deferred to review)._
+_Last reviewed: 2026-08-15 · commit `34526db` · verified against code (2 claims deferred to review)._

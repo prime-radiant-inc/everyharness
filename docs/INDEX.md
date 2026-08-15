@@ -32,5 +32,6 @@ machine-maintained; edit rows, never the sentinels.
 
 <!-- Decided gaps: no DICTIONARY.md yet (voice comes from the publication-writer
 preset; revisit when project terminology needs a record, 2026-08-13); no user
-tutorial beyond README usage (project is pre-alpha and README's usage block
-covers first success, 2026-08-13). -->
+tutorial beyond README usage (README's usage block plus the brochure's Using-it
+transcript cover first success; revisit if npm publication widens the
+audience, 2026-08-15). -->
