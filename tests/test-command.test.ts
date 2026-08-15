@@ -221,7 +221,7 @@ describe('checks/run-checks.sh', () => {
     const longString = 'x'.repeat(1000)
     const result = spawnSync(
       'bash',
-      ['-c', `source <(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}"); output=$(oneline "${longString}"); echo "\${#output}"`],
+      ['-c', `eval "$(sed -n "/^oneline()/,/^}/p" "${CHECKS_SCRIPT}")"; output=$(oneline "${longString}"); echo "\${#output}"`],
       { encoding: 'utf8' },
     )
     expect(result.status).toBe(0)
@@ -241,7 +241,7 @@ describe('checks/run-checks.sh', () => {
     const derive = (path: string) =>
       spawnSync(
         'bash',
-        ['-c', `source <(sed -n "/^market_name()/,/^}/p" "${CHECKS_SCRIPT}"); market_name "${path}" "fallback-dev"`],
+        ['-c', `eval "$(sed -n "/^market_name()/,/^}/p" "${CHECKS_SCRIPT}")"; market_name "${path}" "fallback-dev"`],
         { encoding: 'utf8' },
       )
 
@@ -268,7 +268,7 @@ describe('checks/run-checks.sh', () => {
         'bash',
         [
           '-c',
-          `source <(sed -n "/^rewrite_market_source_local()/,/^}/p" "${CHECKS_SCRIPT}"); MARKET_REWRITE_OK=1; rewrite_market_source_local; echo "$MARKET_REWRITE_OK"`,
+          `eval "$(sed -n "/^rewrite_market_source_local()/,/^}/p" "${CHECKS_SCRIPT}")"; MARKET_REWRITE_OK=1; rewrite_market_source_local; echo "$MARKET_REWRITE_OK"`,
         ],
         { encoding: 'utf8', env: { ...process.env, WORK: workDir } },
       )
@@ -453,7 +453,7 @@ describe('checks/run-checks.sh', () => {
       'bash',
       [
         '-c',
-        `source <(sed -n "/^discover_exec_skill_files()/,/^}/p" "${CHECKS_SCRIPT}"); discover_exec_skill_files "${dir}"`,
+        `eval "$(sed -n "/^discover_exec_skill_files()/,/^}/p" "${CHECKS_SCRIPT}")"; discover_exec_skill_files "${dir}"`,
       ],
       { encoding: 'utf8' },
     )

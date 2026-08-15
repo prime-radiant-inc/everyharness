@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -162,7 +162,9 @@ describe('opencode adapter with bootstrap: none', () => {
 
 describe('opencode plugin JS — dynamic import execution (skill mode)', () => {
   it('registers the skills dir idempotently and injects the bootstrap exactly once across repeated transform calls', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'eh-opencode-exec-'))
+    // realpath: the imported plugin resolves its own path through macOS's
+    // /var -> /private/var symlink, so the expected paths must too.
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'eh-opencode-exec-')))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
       'name: demo\nversion: 1.0.0\ndescription: exec fixture\nbootstrap:\n  skill: using-demo\n',
@@ -215,7 +217,7 @@ describe('opencode plugin JS — dynamic import execution (skill mode)', () => {
 
 describe('opencode plugin JS — dynamic import execution (bootstrap: none)', () => {
   it('exposes only the config hook', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'eh-opencode-exec-none-'))
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'eh-opencode-exec-none-')))
     writeFileSync(
       join(dir, 'everyharness.yaml'),
       'name: nodemo\nversion: 1.0.0\ndescription: exec none fixture\nbootstrap: none\n',
