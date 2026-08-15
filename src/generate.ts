@@ -7,7 +7,7 @@ import { adapters, type HarnessAdapter } from './adapters/index.js'
 import { emitDocs, injectReadme } from './docs-emit.js'
 import { ConfigError, type EveryharnessConfig } from './config.js'
 
-export const TOOL_VERSION = '0.7.1'
+export const TOOL_VERSION = '1.0.0'
 
 export interface GenerateResult {
   files: FileSet

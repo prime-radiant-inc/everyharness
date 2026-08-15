@@ -1,6 +1,6 @@
 {
   "name": "everyharness",
-  "version": "0.7.1",
+  "version": "1.0.0",
   "description": "Generate a coding-agent plugin for every harness from one config file",
   "type": "module",
   "license": "MIT",
