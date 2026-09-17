@@ -16,7 +16,7 @@ export class ConfigError extends Error {
 // `harnesses.<name>.hooks: own`. Shared by resolveBootstrap (validates that a
 // `hooks: own` opt-out only names a hook-emitting harness) and
 // bootstrapEmitsHooks's callers (each adapter passes its own name).
-export const HOOK_EMITTING_HARNESSES = ['claude-code', 'cursor'] as const
+export const HOOK_EMITTING_HARNESSES = ['claude-code', 'cursor', 'muse'] as const
 
 // The canonical adapter-name registry, used to validate that every key under
 // `harnesses:` (other than `exclude`) names a real adapter — so a typo like
@@ -35,6 +35,7 @@ export const ADAPTER_NAMES = [
   'opencode',
   'pi',
   'hermes',
+  'muse',
   'agent-plugins-1.0',
   'agents-marketplace',
 ] as const

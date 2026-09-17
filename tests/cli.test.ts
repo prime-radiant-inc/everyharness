@@ -24,12 +24,12 @@ function runCli(args: string[], cwd: string) {
 describe('CLI end-to-end', () => {
   // dist/cli.js is built once via tests/global-setup.ts (vitest globalSetup),
   // before any test file runs.
-  it('generate exits 0 and reports 11 harnesses with all adapter names', () => {
+  it('generate exits 0 and reports 12 harnesses with all adapter names', () => {
     const dir = tmpPluginDir()
     const result = runCli(['generate'], dir)
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Generated')
-    expect(result.stdout).toContain('11 harness')
+    expect(result.stdout).toContain('12 harness')
     expect(result.stdout).toContain('claude-code')
     expect(result.stdout).toContain('cursor')
     expect(result.stdout).toContain('codex')
@@ -39,6 +39,7 @@ describe('CLI end-to-end', () => {
     expect(result.stdout).toContain('opencode')
     expect(result.stdout).toContain('pi')
     expect(result.stdout).toContain('hermes')
+    expect(result.stdout).toContain('muse')
     expect(result.stdout).toContain('agent-plugins-1.0')
     expect(result.stdout).toContain('agents-marketplace')
   })

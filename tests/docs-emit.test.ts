@@ -95,7 +95,7 @@ describe('emitDocs support-matrix.md', () => {
     expect(lines[2]).toBe('# kitchen-sink harness support matrix')
   })
 
-  it('has exact content for the full 11-adapter registry: all rows plus the Notes section', () => {
+  it('has exact content for the full 12-adapter registry: all rows plus the Notes section', () => {
     const content = emitDocs(model, adapters).find((f) => f.path === 'docs/support-matrix.md')!.content
     expect(content).toBe(
       [
@@ -114,6 +114,7 @@ describe('emitDocs support-matrix.md', () => {
         '| opencode | full | full | partial | none | none | full |',
         '| pi | full | none | none | none | none | full |',
         '| hermes | full | none | none | none | none | full |',
+        '| muse | full | none | none | full | none | full |',
         '| agent-plugins-1.0 | full | none | none | none | full | none |',
         '| agents-marketplace | none | none | none | none | none | none |',
         '',
@@ -144,7 +145,7 @@ describe('emitDocs with the real claude-code adapter (proves the pipe end to end
     )
   })
 
-  it('emits one docs/install/<name>.md per adapter for the real 11-adapter registry (every adapter now implements installDoc)', () => {
+  it('emits one docs/install/<name>.md per adapter for the real 12-adapter registry (every adapter now implements installDoc)', () => {
     const files = emitDocs(model, adapters)
     const installDocPaths = files.filter((f) => f.path.startsWith('docs/install/')).map((f) => f.path)
     expect(installDocPaths.sort()).toEqual(
@@ -153,7 +154,7 @@ describe('emitDocs with the real claude-code adapter (proves the pipe end to end
   })
 })
 
-describe('emitDocs install-doc files for the full 11-adapter registry (Task 2)', () => {
+describe('emitDocs install-doc files for the full 12-adapter registry (Task 2)', () => {
   it('emits docs/install/<name>.md for every adapter, each starting with the marker line and containing the plugin-and-harness heading', () => {
     const files = emitDocs(model, adapters)
     for (const adapter of adapters) {
