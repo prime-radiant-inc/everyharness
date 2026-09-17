@@ -33,12 +33,20 @@ function pyCompile(source: string): { status: number | null } {
 }
 
 describe('adapter registry', () => {
-  it('registers hermes between pi and agent-plugins-1.0', () => {
+  it('registers hermes between pi and muse', () => {
     const names = adapters.map((a) => a.name)
     expect(names).toContain('hermes')
     expect(getAdapter('hermes')).toBe(hermes)
     expect(names.indexOf('hermes')).toBe(names.indexOf('pi') + 1)
-    expect(names.indexOf('hermes')).toBe(names.indexOf('agent-plugins-1.0') - 1)
+    expect(names.indexOf('hermes')).toBe(names.indexOf('muse') - 1)
+  })
+
+  it('registers muse between hermes and agent-plugins-1.0', () => {
+    const names = adapters.map((a) => a.name)
+    expect(names).toContain('muse')
+    expect(getAdapter('muse')).toBeDefined()
+    expect(names.indexOf('muse')).toBe(names.indexOf('hermes') + 1)
+    expect(names.indexOf('muse')).toBe(names.indexOf('agent-plugins-1.0') - 1)
   })
 })
 
