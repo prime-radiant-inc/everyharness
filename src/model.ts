@@ -38,7 +38,8 @@ function readSkills(root: string, skillsDir: string): SkillRef[] {
     .filter((entry) => statSync(join(abs, entry)).isDirectory())
     .filter((entry) => existsSync(join(abs, entry, 'SKILL.md')))
     .map((entry) => {
-      const { data } = parseFrontmatter(readFileSync(join(abs, entry, 'SKILL.md'), 'utf8'))
+      const rel = `${skillsDir}/${entry}/SKILL.md`
+      const { data } = parseFrontmatterAt(rel, readFileSync(join(abs, entry, 'SKILL.md'), 'utf8'))
       return {
         name: typeof data.name === 'string' ? data.name : entry,
         dir: `${skillsDir}/${entry}`,
@@ -46,6 +47,20 @@ function readSkills(root: string, skillsDir: string): SkillRef[] {
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// parseFrontmatter's YAMLParseError names a line and column inside the
+// frontmatter block but never the file it came from — a needle-in-haystack
+// in a plugin with many skills/agents/commands. Both readSkills and
+// readMarkdownComponents still have the file path in scope here, so wrap the
+// parse and re-throw a ConfigError that names it, preserving the original
+// message (and thus the line/column) via string interpolation and .cause.
+function parseFrontmatterAt(relPath: string, src: string): ReturnType<typeof parseFrontmatter> {
+  try {
+    return parseFrontmatter(src)
+  } catch (e) {
+    throw new ConfigError(`${relPath} frontmatter did not parse: ${(e as Error).message}`, [], { cause: e })
+  }
 }
 
 function readMarkdownComponents(root: string, dir: string): Array<{
@@ -59,8 +74,9 @@ function readMarkdownComponents(root: string, dir: string): Array<{
   return readdirSync(abs)
     .filter((f) => f.endsWith('.md'))
     .map((f) => {
-      const { data, body } = parseFrontmatter(readFileSync(join(abs, f), 'utf8'))
-      return { name: f.replace(/\.md$/, ''), path: `${dir}/${f}`, data, body }
+      const relPath = `${dir}/${f}`
+      const { data, body } = parseFrontmatterAt(relPath, readFileSync(join(abs, f), 'utf8'))
+      return { name: f.replace(/\.md$/, ''), path: relPath, data, body }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 }

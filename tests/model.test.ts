@@ -127,4 +127,15 @@ describe('buildModel', () => {
     writeFileSync(join(dir, '.mcp.json'), '"str"')
     expect(() => buildModel(dir)).toThrowError(/\.mcp\.json must contain a JSON object/)
   })
+
+  it('names the offending file when an unquoted description colon breaks frontmatter YAML (issue #13)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eh-model-'))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: bad-frontmatter\nversion: 1.0.0\ndescription: bad frontmatter\n')
+    mkdirSync(join(dir, 'agents'), { recursive: true })
+    writeFileSync(
+      join(dir, 'agents', 'security-reviewer.md'),
+      '---\nname: security-reviewer\ndescription: Reviews diffs for capability-disclosure defects: over-broad grants, hidden instructions\n---\nBody\n',
+    )
+    expect(() => buildModel(dir)).toThrowError(/agents\/security-reviewer\.md frontmatter did not parse/)
+  })
 })
