@@ -567,10 +567,22 @@ All three clients install the plugin's real claude-code-style layout (skills/, c
 
 ## Installing
 
-Register the marketplace, then install the plugin:
+Register the marketplace, then install the plugin.
+
+From a shell:
 
 \`\`\`
-claude /plugin marketplace add prime-radiant-inc/everyharness
+claude plugin marketplace add prime-radiant-inc/everyharness
+\`\`\`
+
+\`\`\`
+claude plugin install kitchen-sink@kitchen-sink-market
+\`\`\`
+
+Or, inside a Claude Code session:
+
+\`\`\`
+/plugin marketplace add prime-radiant-inc/everyharness
 \`\`\`
 
 \`\`\`
