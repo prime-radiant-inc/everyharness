@@ -125,10 +125,22 @@ describe('claude-code adapter installDoc', () => {
         '',
         '## Installing',
         '',
-        'Register the marketplace, then install the plugin:',
+        'Register the marketplace, then install the plugin.',
+        '',
+        'From a shell:',
         '',
         '```',
-        'claude /plugin marketplace add prime-radiant-inc/everyharness',
+        'claude plugin marketplace add prime-radiant-inc/everyharness',
+        '```',
+        '',
+        '```',
+        'claude plugin install kitchen-sink@kitchen-sink-market',
+        '```',
+        '',
+        'Or, inside a Claude Code session:',
+        '',
+        '```',
+        '/plugin marketplace add prime-radiant-inc/everyharness',
         '```',
         '',
         '```',
@@ -152,7 +164,9 @@ describe('claude-code adapter installDoc', () => {
     )
     const noRepoModel = buildModel(dir)
     const body = claudeCode.installDoc!(noRepoModel)
-    expect(body).toContain('claude /plugin marketplace add <your-repo>')
+    expect(body).toContain('claude plugin marketplace add <your-repo>')
+    expect(body).toContain('claude plugin install no-repo@no-repo-dev')
+    expect(body).toContain('/plugin marketplace add <your-repo>')
     expect(body).toContain('/plugin install no-repo@no-repo-dev')
   })
 
@@ -163,7 +177,20 @@ describe('claude-code adapter installDoc', () => {
       'name: non-github\nversion: 1.0.0\ndescription: non-github repository fixture\nrepository: https://gitlab.com/owner/repo\nbootstrap: none\n',
     )
     const nonGithubModel = buildModel(dir)
-    expect(claudeCode.installDoc!(nonGithubModel)).toContain('claude /plugin marketplace add <your-repo>')
+    expect(claudeCode.installDoc!(nonGithubModel)).toContain('claude plugin marketplace add <your-repo>')
+  })
+
+  it('never emits `claude /plugin ...` — that mixes the CLI and in-session slash forms and Claude Code parses it as a prompt, not a command (issue #12)', () => {
+    const body = claudeCode.installDoc!(model)
+    expect(body).not.toMatch(/claude \/plugin/)
+  })
+
+  it('gives the shell form (`claude plugin marketplace add`, no leading slash) alongside the in-session form (`/plugin marketplace add`) (issue #12)', () => {
+    const body = claudeCode.installDoc!(model)
+    expect(body).toContain('claude plugin marketplace add prime-radiant-inc/everyharness')
+    expect(body).toContain('claude plugin install kitchen-sink@kitchen-sink-market')
+    expect(body).toContain('/plugin marketplace add prime-radiant-inc/everyharness')
+    expect(body).toContain('/plugin install kitchen-sink@kitchen-sink-market')
   })
 
   it('omits the bootstrap hook line and the Caveats section when bootstrap is not active', () => {

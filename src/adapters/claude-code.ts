@@ -97,16 +97,21 @@ function marketplaceManifest(model: PluginModel): Record<string, unknown> {
   return marketplace
 }
 
-// Ground truth per Design decision 4: `claude /plugin marketplace add REPO`
-// then `/plugin install <name>@<marketplace-name>`, with REPO substituted from
-// config.repository when it's a github.com URL and a `<your-repo>`
-// placeholder otherwise (never a fabricated marketplace listing), and
-// marketplace-name resolved by marketplaceName() — config.marketplace.name
-// when set, otherwise the local-dev default `<name>-dev`.
+// Ground truth per Design decision 4, corrected for Claude Code 2.1.247
+// (issue #12 — `claude /plugin ...` mixes the CLI and in-session slash forms
+// and is parsed as a prompt, not a command): from a shell, `claude plugin
+// marketplace add REPO` then `claude plugin install <name>@<marketplace-name>`;
+// from inside a session, the same two operations drop the `claude ` prefix
+// and gain the leading `/`. REPO is substituted from config.repository when
+// it's a github.com URL and a `<your-repo>` placeholder otherwise (never a
+// fabricated marketplace listing), and marketplace-name resolved by
+// marketplaceName() — config.marketplace.name when set, otherwise the
+// local-dev default `<name>-dev`.
 function installDoc(model: PluginModel): string {
   const { config } = model
   const repo = githubOwnerRepo(config.repository) ?? '<your-repo>'
   const bootstrapActive = bootstrapEmitsHooks(config, claudeCode.name)
+  const install = `${config.name}@${marketplaceName(config)}`
 
   const emitted = ['`.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`']
   if (bootstrapActive) {
@@ -122,14 +127,26 @@ function installDoc(model: PluginModel): string {
     '',
     '## Installing',
     '',
-    'Register the marketplace, then install the plugin:',
+    'Register the marketplace, then install the plugin.',
+    '',
+    'From a shell:',
     '',
     '```',
-    `claude /plugin marketplace add ${repo}`,
+    `claude plugin marketplace add ${repo}`,
     '```',
     '',
     '```',
-    `/plugin install ${config.name}@${marketplaceName(config)}`,
+    `claude plugin install ${install}`,
+    '```',
+    '',
+    'Or, inside a Claude Code session:',
+    '',
+    '```',
+    `/plugin marketplace add ${repo}`,
+    '```',
+    '',
+    '```',
+    `/plugin install ${install}`,
     '```',
     '',
     "If the marketplace is already registered, only the install command is needed. Consult Claude Code's plugin docs if these commands don't match your installed version.",
