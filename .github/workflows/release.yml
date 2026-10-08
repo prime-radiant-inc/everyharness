@@ -1,0 +1,61 @@
+name: Release
+
+# Push a `vX.Y.Z` tag on a commit on main to publish to npm. The version comes from
+# package.json (and TOOL_VERSION in src/generate.ts); the guards below fail the run if the
+# tag disagrees with either, or if the tagged commit isn't on main.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm trusted publishing + provenance
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a half-done publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # need main's history for the ancestry guard
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Pin npm (trusted publishing + provenance need >= 11.5.1)
+        run: npm install -g npm@^11.5.1
+      - name: Guard — tagged commit must be on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main"; exit 1
+          fi
+      - run: npm ci
+      - run: npm run build
+      - name: Guard — tag must match package.json and CLI version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p 'require("./package.json").version')
+          cli=$(node dist/cli.js --version)
+          if [ "$want" != "$pkg" ] || [ "$want" != "$cli" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, package.json $pkg, CLI $cli must all agree"; exit 1
+          fi
+          echo "publishing version $want"
+      - name: Publish to npm (OIDC trusted publishing)
+        # Tokenless: the first publish (package creation) is a one-time MANUAL publish from a
+        # maintainer's machine; every CI release after authenticates via the configured Trusted
+        # Publisher. prepublishOnly re-runs build + tests. Prerelease tags → `next` dist-tag.
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIST_TAG="latest"; case "$VERSION" in *-*) DIST_TAG="next";; esac
+          rm -f "$HOME/.npmrc"
+          # Idempotent: a re-fired tag skips an already-published version instead of failing.
+          # Guard on non-empty output (npm view's exit code for a missing version varies).
+          if [ -n "$(npm view "everyharness@$VERSION" version 2>/dev/null)" ]; then
+            echo "everyharness@$VERSION already published — skipping"
+          else
+            npm publish --tag "$DIST_TAG"
+          fi
