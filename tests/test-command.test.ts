@@ -82,7 +82,6 @@ function sandboxBin(): string {
     'bash',
     'sh',
     'jq',
-    'node',
     'python3',
     'git',
     'cp',
@@ -103,6 +102,8 @@ function sandboxBin(): string {
     'ls',
     'chmod',
     'uname',
+    'cut',
+    'mv',
   ]
   const searchDirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean)
   for (const tool of tools) {
@@ -113,6 +114,10 @@ function sandboxBin(): string {
       break
     }
   }
+  // The real binary running this suite, not whatever `node` is first on PATH:
+  // a version-manager shim (mise, asdf, volta) can't resolve a node from
+  // inside this stripped PATH and throwaway HOME.
+  symlinkSync(process.execPath, join(bin, 'node'))
   return bin
 }
 
