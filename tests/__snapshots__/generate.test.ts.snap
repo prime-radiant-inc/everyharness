@@ -343,23 +343,23 @@ const BOOTSTRAP_MARKER = '<plugin-bootstrap plugin="kitchen-sink">'
 // redundant fs work on every agent step.
 let _bootstrapCache = undefined // undefined = not yet loaded, null = file missing
 
-export const KitchenSinkPlugin = async ({ client, directory }) => {
-  const getBootstrapContent = () => {
-    if (_bootstrapCache !== undefined) return _bootstrapCache
+const getBootstrapContent = () => {
+  if (_bootstrapCache !== undefined) return _bootstrapCache
 
-    const bootstrapPath = path.resolve(__dirname, '../../skills/using-kitchen-sink/SKILL.md')
-    if (!fs.existsSync(bootstrapPath)) {
-      _bootstrapCache = null
-      return null
-    }
-
-    const fullContent = fs.readFileSync(bootstrapPath, 'utf8')
-    const { content } = extractAndStripFrontmatter(fullContent)
-
-    _bootstrapCache = BOOTSTRAP_MARKER + '\\n' + content + '\\n</plugin-bootstrap>'
-    return _bootstrapCache
+  const bootstrapPath = path.resolve(__dirname, '../../skills/using-kitchen-sink/SKILL.md')
+  if (!fs.existsSync(bootstrapPath)) {
+    _bootstrapCache = null
+    return null
   }
 
+  const fullContent = fs.readFileSync(bootstrapPath, 'utf8')
+  const { content } = extractAndStripFrontmatter(fullContent)
+
+  _bootstrapCache = BOOTSTRAP_MARKER + '\\n' + content + '\\n</plugin-bootstrap>'
+  return _bootstrapCache
+}
+
+export const KitchenSinkPlugin = async ({ client, directory }) => {
   return {
     // Inject the plugin's skills path into live config so OpenCode discovers
     // its skills without requiring manual symlinks or config file edits.
@@ -386,6 +386,63 @@ export const KitchenSinkPlugin = async ({ client, directory }) => {
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap })
     },
   }
+}
+
+// V2 entry point. V1 also calls default.setup, but with a ctx lacking the
+// skill/session domains; the named export already serves V1, so bail out.
+async function setup(ctx) {
+  if (!ctx || !ctx.skill || typeof ctx.skill.transform !== 'function') return
+
+  try {
+    const skills = []
+    if (fs.existsSync(skillsDir)) {
+      for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+        const skillPath = path.join(skillsDir, entry.name, 'SKILL.md')
+        if (!fs.existsSync(skillPath)) continue
+        const { frontmatter, content } = extractAndStripFrontmatter(fs.readFileSync(skillPath, 'utf8'))
+        skills.push({
+          id: entry.name,
+          name: frontmatter.name || entry.name,
+          ...(frontmatter.description ? { description: frontmatter.description } : {}),
+          path: skillPath,
+          content,
+        })
+      }
+    }
+    await ctx.skill.transform((draft) => {
+      for (const skill of skills) {
+        try {
+          draft.add(skill)
+        } catch (err) {
+          // A throw escaping the transform hard-disables the whole plugin; skip the skill instead.
+          console.error('[kitchen-sink] skill "' + skill.id + '" rejected by host, skipping:', err)
+        }
+      }
+    })
+  } catch (err) {
+    console.error('[kitchen-sink] skill registration failed:', err)
+  }
+
+  if (!ctx.session || typeof ctx.session.hook !== 'function') return
+  try {
+    await ctx.session.hook('context', async (event) => {
+      const bootstrap = getBootstrapContent()
+      if (!bootstrap || !event.messages || !event.messages.length) return
+      const firstUser = event.messages.find((m) => m.role === 'user')
+      if (!firstUser || !firstUser.content || !firstUser.content.length) return
+      if (firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))) return
+      firstUser.content.unshift({ type: 'text', text: bootstrap })
+    })
+  } catch (err) {
+    console.error('[kitchen-sink] session hook registration failed:', err)
+  }
+}
+
+export default {
+  id: 'kitchen-sink',
+  server: KitchenSinkPlugin,
+  setup,
 }
 
 === .pi/extensions/kitchen-sink.ts ===

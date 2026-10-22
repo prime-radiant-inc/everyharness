@@ -121,6 +121,30 @@ describe('opencode adapter with a plugin name starting with a digit', () => {
   })
 })
 
+describe('opencode adapter V2 default export', () => {
+  it('emits { id, server, setup } and setup() registers every skill via ctx.skill.transform', async () => {
+    const dir = tmpFixture('name: v2-tool\nversion: 1.0.0\ndescription: v2 fixture\nbootstrap: none\n')
+    mkdirSync(join(dir, 'skills', 'alpha'), { recursive: true })
+    writeFileSync(join(dir, 'skills', 'alpha', 'SKILL.md'), '---\nname: alpha\ndescription: Alpha skill\n---\n\nBody\n')
+    const js = opencode.emit(buildModel(dir)).files.find((f) => f.path === '.opencode/plugins/v2-tool.js')!.content
+    mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
+    const pluginAbsPath = join(dir, '.opencode', 'plugins', 'v2-tool.js')
+    writeFileSync(pluginAbsPath, js)
+    const mod = (await import(pathToFileURL(pluginAbsPath).href)) as { default: { id: string; server: unknown; setup: (ctx: unknown) => Promise<void> } }
+    expect(mod.default.id).toBe('v2-tool')
+    expect(typeof mod.default.server).toBe('function')
+
+    const added: Array<Record<string, unknown>> = []
+    await mod.default.setup({ skill: { transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => fn({ add: (s) => added.push(s) }) } })
+    expect(added).toEqual([
+      { id: 'alpha', name: 'alpha', description: 'Alpha skill', path: join(realpathSync(dir), 'skills', 'alpha', 'SKILL.md'), content: '\nBody\n' },
+    ])
+
+    // V1 calls default.setup with a ctx lacking the skill domain: must be a no-op.
+    await expect(mod.default.setup({})).resolves.toBeUndefined()
+  })
+})
+
 describe('opencode adapter without hooks/mcp/tools-bearing agents', () => {
   it('emits no warnings', () => {
     const dir = tmpFixture('name: plain\nversion: 1.0.0\ndescription: plain fixture\nbootstrap: none\n')
