@@ -391,7 +391,7 @@ export const KitchenSinkPlugin = async ({ client, directory }) => {
 // V2 entry point. V1 also calls default.setup, but with a ctx lacking the
 // skill/session domains; the named export already serves V1, so bail out.
 async function setup(ctx) {
-  if (!ctx || !ctx.skill || typeof ctx.skill.transform !== 'function') return
+  if (!ctx || !ctx.skill || typeof ctx.skill.transform !== 'function' || !ctx.session || typeof ctx.session.hook !== 'function') return
 
   try {
     const skills = []
@@ -424,18 +424,74 @@ async function setup(ctx) {
     console.error('[kitchen-sink] skill registration failed:', err)
   }
 
-  if (!ctx.session || typeof ctx.session.hook !== 'function') return
+  // Register each agent emitted under \`.opencode/agent/\` as a V2 subagent.
   try {
-    await ctx.session.hook('context', async (event) => {
+    const pluginRoot = path.resolve(__dirname, '../..')
+    const agentsDir = path.resolve(__dirname, '../agent')
+    if (fs.existsSync(agentsDir)) {
+      const agents = []
+      for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+        const agentPath = path.join(agentsDir, entry.name)
+        const { frontmatter, content } = extractAndStripFrontmatter(fs.readFileSync(agentPath, 'utf8'))
+        const id = entry.name.slice(0, -'.md'.length)
+        agents.push({
+          id,
+          definition: {
+            id,
+            // Agent bodies may reference the plugin checkout; resolve it at runtime.
+            system: content.replaceAll('\${CLAUDE_PLUGIN_ROOT}', pluginRoot),
+            ...(frontmatter.description ? { description: frontmatter.description } : {}),
+            mode: 'subagent',
+            hidden: false,
+            request: { headers: {}, body: {} },
+            permissions: [{ action: '*', resource: '*', effect: 'allow' }],
+          },
+        })
+      }
+      await ctx.agent.transform((draft) => {
+        for (const agent of agents) {
+          try {
+            draft.update(agent.id, (existing) => Object.assign(existing, agent.definition))
+          } catch (err) {
+            // Contain per-agent failures so one rejection does not disable the plugin.
+            console.error('[kitchen-sink] agent "' + agent.id + '" rejected by host, skipping:', err)
+          }
+        }
+      })
+    }
+  } catch (err) {
+    console.error('[kitchen-sink] agent registration failed:', err)
+  }
+
+  // V2 dispatches three request shapes: context (normal turn), compaction
+  // (auto-summary), and generate (explicit generation). Registering only
+  // context makes the other two diverge from the cached prefix at the
+  // first user message, forcing a cold re-prefill of large sessions.
+  const injectBootstrap = async (event) => {
+    try {
       const bootstrap = getBootstrapContent()
       if (!bootstrap || !event.messages || !event.messages.length) return
       const firstUser = event.messages.find((m) => m.role === 'user')
-      if (!firstUser || !firstUser.content || !firstUser.content.length) return
-      if (firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))) return
-      firstUser.content.unshift({ type: 'text', text: bootstrap })
-    })
-  } catch (err) {
-    console.error('[kitchen-sink] session hook registration failed:', err)
+      if (firstUser && (!firstUser.content || !firstUser.content.length)) return
+      if (firstUser && firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))) return
+      // Native compaction can leave only an opaque checkpoint: keep it and
+      // append the transient bootstrap as a user message.
+      if (firstUser) {
+        firstUser.content.unshift({ type: 'text', text: bootstrap })
+      } else {
+        event.messages.push({ role: 'user', content: [{ type: 'text', text: bootstrap }] })
+      }
+    } catch (err) {
+      console.error('[kitchen-sink] bootstrap injection failed:', err)
+    }
+  }
+  for (const hookName of ['context', 'compaction', 'generate']) {
+    try {
+      await ctx.session.hook(hookName, injectBootstrap)
+    } catch (err) {
+      console.error('[kitchen-sink] session hook registration failed (' + hookName + '):', err)
+    }
   }
 }
 

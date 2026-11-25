@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -73,6 +73,39 @@ describe('opencode adapter', () => {
     expect(js).toContain("path.resolve(__dirname, '../../skills/using-kitchen-sink/SKILL.md')")
   })
 
+  it('emits a V2 default export alongside the intact V1 named export', () => {
+    const js = byPath['.opencode/plugins/kitchen-sink.js']
+    // V1 surface: named export, config hook, V1 message transform.
+    expect(js).toContain('export const KitchenSinkPlugin = async ({ client, directory }) => {')
+    expect(js).toContain('config.skills.paths.push(skillsDir)')
+    expect(js).toContain("'experimental.chat.messages.transform'")
+    // V2 surface: default export { id, server, setup }.
+    expect(js).toContain('export default {')
+    expect(js).toContain("  id: 'kitchen-sink',")
+    expect(js).toContain('  server: KitchenSinkPlugin,')
+    expect(js).toContain('  setup,')
+  })
+
+  it('registers each generated agent via ctx.agent.transform and draft.update', () => {
+    const js = byPath['.opencode/plugins/kitchen-sink.js']
+    expect(js).toContain("const agentsDir = path.resolve(__dirname, '../agent')")
+    expect(js).toContain("if (!entry.isFile() || !entry.name.endsWith('.md')) continue")
+    expect(js).toContain('await ctx.agent.transform((draft) => {')
+    expect(js).toContain('draft.update(agent.id, (existing) => Object.assign(existing, agent.definition))')
+    expect(js).toContain("mode: 'subagent',")
+    expect(js).toContain('hidden: false,')
+    expect(js).toContain('request: { headers: {}, body: {} },')
+    expect(js).toContain("permissions: [{ action: '*', resource: '*', effect: 'allow' }],")
+    expect(js).toContain("content.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot)")
+  })
+
+  it('registers the bootstrap injector on context, compaction, and generate', () => {
+    const js = byPath['.opencode/plugins/kitchen-sink.js']
+    expect(js).toContain("for (const hookName of ['context', 'compaction', 'generate'])")
+    expect(js).toContain('await ctx.session.hook(hookName, injectBootstrap)')
+    expect(js).toContain("firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))")
+  })
+
   it('emits ks-hello.md with the marker-as-YAML-comment, description frontmatter, and body verbatim', () => {
     expect(byPath['.opencode/command/ks-hello.md']).toBe(
       '---\n' +
@@ -135,13 +168,27 @@ describe('opencode adapter V2 default export', () => {
     expect(typeof mod.default.server).toBe('function')
 
     const added: Array<Record<string, unknown>> = []
-    await mod.default.setup({ skill: { transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => fn({ add: (s) => added.push(s) }) } })
+    const hooked: string[] = []
+    await mod.default.setup({
+      skill: { transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => fn({ add: (s) => added.push(s) }) },
+      session: { hook: async (name: string) => { hooked.push(name) } },
+    })
     expect(added).toEqual([
       { id: 'alpha', name: 'alpha', description: 'Alpha skill', path: join(realpathSync(dir), 'skills', 'alpha', 'SKILL.md'), content: '\nBody\n' },
     ])
+    // bootstrap: none -> no session hooks registered.
+    expect(hooked).toEqual([])
 
     // V1 calls default.setup with a ctx lacking the skill domain: must be a no-op.
     await expect(mod.default.setup({})).resolves.toBeUndefined()
+
+    // V2 is detected by both skill.transform and session.hook; a ctx with only
+    // the skill domain is V1-shaped and must register nothing.
+    const onlySkill: Array<Record<string, unknown>> = []
+    await expect(
+      mod.default.setup({ skill: { transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => fn({ add: (s) => onlySkill.push(s) }) } }),
+    ).resolves.toBeUndefined()
+    expect(onlySkill).toEqual([])
   })
 })
 
@@ -179,6 +226,11 @@ describe('opencode adapter with bootstrap: none', () => {
     expect(js).not.toContain('_bootstrapCache')
     expect(js).not.toContain('experimental.chat.messages.transform')
     expect(js).not.toContain('BOOTSTRAP_MARKER')
+    expect(js).not.toContain('injectBootstrap')
+    expect(js).not.toContain('ctx.session.hook(')
+    // The fixture has no agents, so no agent registration block either.
+    expect(js).not.toContain('ctx.agent.transform')
+    expect(js).toContain('export default {')
     expect(js).toContain('config.skills.paths.push(skillsDir)')
     expect(js).not.toMatch(/__[A-Z_]+__/)
   })
@@ -263,5 +315,194 @@ describe('opencode plugin JS — dynamic import execution (bootstrap: none)', ()
     const config: { skills: { paths: string[] } } = { skills: { paths: [] } }
     await (instance.config as (c: typeof config) => Promise<void>)(config)
     expect(config.skills.paths).toEqual([join(dir, 'skills')])
+  })
+})
+
+describe('opencode plugin JS — V2 setup execution (skills + agents + hooks)', () => {
+  it('registers skills, resolves ${CLAUDE_PLUGIN_ROOT} in agents, and covers all three session hooks', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'eh-opencode-v2-')))
+    writeFileSync(
+      join(dir, 'everyharness.yaml'),
+      'name: v2exec\nversion: 1.0.0\ndescription: v2 exec fixture\nbootstrap:\n  skill: using-v2exec\n',
+    )
+    mkdirSync(join(dir, 'skills', 'using-v2exec'), { recursive: true })
+    writeFileSync(
+      join(dir, 'skills', 'using-v2exec', 'SKILL.md'),
+      '---\nname: using-v2exec\ndescription: exec fixture skill\n---\n\nBootstrap body.\n',
+    )
+    mkdirSync(join(dir, 'agents'), { recursive: true })
+    writeFileSync(
+      join(dir, 'agents', 'reporter.md'),
+      '---\nname: reporter\ndescription: Writes reports\n---\n\nRead ${CLAUDE_PLUGIN_ROOT}/README.md.\n',
+    )
+
+    const v2Model = buildModel(dir)
+    expect(v2Model.agents.map((a) => a.name)).toEqual(['reporter'])
+    writeFileSet(dir, opencode.emit(v2Model).files)
+
+    const mod = (await import(pathToFileURL(join(dir, '.opencode', 'plugins', 'v2exec.js')).href)) as {
+      default: { id: string; setup: (ctx: unknown) => Promise<void> }
+    }
+
+    const addedSkills: Array<Record<string, unknown>> = []
+    const agents = new Map<string, Record<string, unknown>>()
+    const hooks = new Map<string, (event: { messages: Array<Record<string, unknown>> }) => Promise<void>>()
+    const ctx = {
+      skill: {
+        transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => {
+          fn({ add: (s) => { addedSkills.push(s) } })
+        },
+      },
+      agent: {
+        transform: async (
+          fn: (d: { update: (id: string, updater: (a: Record<string, unknown>) => void) => void }) => void,
+        ) => {
+          fn({
+            update: (id, updater) => {
+              const target: Record<string, unknown> = {}
+              updater(target)
+              agents.set(id, target)
+            },
+          })
+        },
+      },
+      session: {
+        hook: async (name: string, fn: (event: { messages: Array<Record<string, unknown>> }) => Promise<void>) => {
+          hooks.set(name, fn)
+        },
+      },
+    }
+    await mod.default.setup(ctx)
+
+    expect(addedSkills.map((s) => s.id)).toEqual(['using-v2exec'])
+    expect([...hooks.keys()]).toEqual(['context', 'compaction', 'generate'])
+
+    const expectedSystem = v2Model.agents[0]!.body.replaceAll('${CLAUDE_PLUGIN_ROOT}', dir)
+    expect(agents.get('reporter')).toEqual({
+      id: 'reporter',
+      system: expectedSystem,
+      description: 'Writes reports',
+      mode: 'subagent',
+      hidden: false,
+      request: { headers: {}, body: {} },
+      permissions: [{ action: '*', resource: '*', effect: 'allow' }],
+    })
+    expect(agents.get('reporter')!.system).toContain(join(dir, 'README.md'))
+    expect(agents.get('reporter')!.system).not.toContain('${CLAUDE_PLUGIN_ROOT}')
+
+    // Each hook injects the bootstrap once, guarded by the marker on re-entry.
+    const event = { messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] }
+    const parts = () => event.messages[0]!.content as Array<{ type: string; text: string }>
+    await hooks.get('context')!(event)
+    await hooks.get('compaction')!(event)
+    expect(parts()).toHaveLength(2)
+    expect(parts()[0]!.text).toContain('<plugin-bootstrap plugin="v2exec">')
+    expect(parts()[0]!.text).toContain('Bootstrap body.')
+
+    // Native compaction can leave only an opaque checkpoint: keep it and
+    // append the bootstrap as a user message.
+    const checkpoint = { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'summary' }] }] }
+    await hooks.get('generate')!(checkpoint)
+    expect(checkpoint.messages).toHaveLength(2)
+    expect((checkpoint.messages[1]!.content as Array<{ text: string }>)[0]!.text).toContain(
+      '<plugin-bootstrap plugin="v2exec">',
+    )
+    expect((checkpoint.messages[0]!.content as Array<{ text: string }>)[0]!.text).toBe('summary')
+  })
+
+  it('contains a skill rejected by the host so the rest still register', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'eh-opencode-v2-skill-')))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: v2fail\nversion: 1.0.0\ndescription: containment fixture\nbootstrap: none\n')
+    for (const name of ['bad', 'good']) {
+      mkdirSync(join(dir, 'skills', name), { recursive: true })
+      writeFileSync(join(dir, 'skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name}\n---\n\nBody.\n`)
+    }
+    writeFileSet(dir, opencode.emit(buildModel(dir)).files)
+
+    const mod = (await import(pathToFileURL(join(dir, '.opencode', 'plugins', 'v2fail.js')).href)) as {
+      default: { setup: (ctx: unknown) => Promise<void> }
+    }
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const attempted: string[] = []
+      const added: string[] = []
+      const ctx = {
+        skill: {
+          transform: async (fn: (d: { add: (s: Record<string, unknown>) => void }) => void) => {
+            fn({
+              add: (s) => {
+                attempted.push(s.id as string)
+                if (s.id === 'bad') throw new Error('rejected by host')
+                added.push(s.id as string)
+              },
+            })
+          },
+        },
+        session: { hook: async () => {} },
+      }
+      await expect(mod.default.setup(ctx)).resolves.toBeUndefined()
+      expect(attempted.sort()).toEqual(['bad', 'good'])
+      expect(added).toEqual(['good'])
+      expect(errorSpy).toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('contains an agent rejected by the host and still registers the others', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'eh-opencode-v2-agent-')))
+    writeFileSync(join(dir, 'everyharness.yaml'), 'name: v2agentfail\nversion: 1.0.0\ndescription: agent containment\nbootstrap: none\n')
+    mkdirSync(join(dir, 'agents'), { recursive: true })
+    for (const name of ['alpha', 'beta']) {
+      writeFileSync(join(dir, 'agents', `${name}.md`), `---\nname: ${name}\ndescription: ${name}\n---\n\n${name} body.\n`)
+    }
+    writeFileSet(dir, opencode.emit(buildModel(dir)).files)
+
+    const mod = (await import(pathToFileURL(join(dir, '.opencode', 'plugins', 'v2agentfail.js')).href)) as {
+      default: { setup: (ctx: unknown) => Promise<void> }
+    }
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const updated: string[] = []
+      const ctx = {
+        skill: { transform: async () => {} },
+        agent: {
+          transform: async (
+            fn: (d: { update: (id: string, updater: (a: Record<string, unknown>) => void) => void }) => void,
+          ) => {
+            fn({
+              update: (id, updater) => {
+                if (id === 'alpha') throw new Error('rejected by host')
+                const target: Record<string, unknown> = {}
+                updater(target)
+                updated.push(id)
+              },
+            })
+          },
+        },
+        session: { hook: async () => {} },
+      }
+      await expect(mod.default.setup(ctx)).resolves.toBeUndefined()
+      expect(updated).toEqual(['beta'])
+      expect(errorSpy).toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+})
+
+describe('opencode adapter with bootstrap: none and agents', () => {
+  it('registers agents but no session hooks', () => {
+    const dir = tmpFixture('name: none-agents\nversion: 1.0.0\ndescription: none plus agents\nbootstrap: none\n')
+    mkdirSync(join(dir, 'agents'), { recursive: true })
+    writeFileSync(join(dir, 'agents', 'helper.md'), '---\nname: helper\ndescription: Helps\n---\n\nHelp out.\n')
+    const js = opencode.emit(buildModel(dir)).files.find((f) => f.path === '.opencode/plugins/none-agents.js')!.content
+    expect(js).toContain('ctx.agent.transform')
+    expect(js).toContain('draft.update(agent.id')
+    expect(js).not.toContain('injectBootstrap')
+    expect(js).not.toContain('ctx.session.hook(')
+    expect(js).not.toMatch(/__[A-Z_]+__/)
   })
 })

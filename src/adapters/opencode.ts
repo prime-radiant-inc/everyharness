@@ -44,18 +44,18 @@ const FRONTMATTER_LINES = [
   '}',
 ]
 
-// OpenCode V2 loads plugins through a default export `{ id, setup }` and
-// refuses modules without one ("Plugin must export a default definition").
+// OpenCode V2 loads plugins through a default export `{ id, server, setup }`
+// and refuses modules without one ("Plugin must export a default definition").
 // V1 keeps reading the named export. Mirrors superpowers' dual-compatible
 // plugin: setup() registers each skills/<name>/SKILL.md via
-// ctx.skill.transform(draft.add) and, when bootstrap is active, injects it
-// through ctx.session.hook('context'), V2's replacement for
-// experimental.chat.messages.transform.
+// ctx.skill.transform(draft.add), registers each emitted .opencode/agent/*.md
+// via ctx.agent.transform(draft.update), and (when bootstrap is active)
+// injects it through ctx.session.hook on all three V2 request shapes.
 const V2_SETUP_LINES = [
   '// V2 entry point. V1 also calls default.setup, but with a ctx lacking the',
   '// skill/session domains; the named export already serves V1, so bail out.',
   'async function setup(ctx) {',
-  "  if (!ctx || !ctx.skill || typeof ctx.skill.transform !== 'function') return",
+  "  if (!ctx || !ctx.skill || typeof ctx.skill.transform !== 'function' || !ctx.session || typeof ctx.session.hook !== 'function') return",
   '',
   '  try {',
   '    const skills = []',
@@ -87,6 +87,7 @@ const V2_SETUP_LINES = [
   '  } catch (err) {',
   "    console.error('[__PLUGIN_NAME__] skill registration failed:', err)",
   '  }',
+  '__V2_AGENT__',
   '__V2_BOOTSTRAP__',
   '}',
   '',
@@ -98,20 +99,84 @@ const V2_SETUP_LINES = [
   '',
 ]
 
+// Agent registration for V2. The host's agent draft API (2.3.x) has
+// list/get/default/update/remove but no `add`; update() on an unknown id
+// creates the agent, so that is the path used here. Only emitted when the
+// plugin generates agents, so the runtime scan of `.opencode/agent/` has
+// something to find.
+const V2_AGENT_BLOCK = [
+  '',
+  '  // Register each agent emitted under `.opencode/agent/` as a V2 subagent.',
+  '  try {',
+  "    const pluginRoot = path.resolve(__dirname, '../..')",
+  "    const agentsDir = path.resolve(__dirname, '../agent')",
+  '    if (fs.existsSync(agentsDir)) {',
+  '      const agents = []',
+  '      for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {',
+  "        if (!entry.isFile() || !entry.name.endsWith('.md')) continue",
+  '        const agentPath = path.join(agentsDir, entry.name)',
+  "        const { frontmatter, content } = extractAndStripFrontmatter(fs.readFileSync(agentPath, 'utf8'))",
+  "        const id = entry.name.slice(0, -'.md'.length)",
+  '        agents.push({',
+  '          id,',
+  '          definition: {',
+  '            id,',
+  '            // Agent bodies may reference the plugin checkout; resolve it at runtime.',
+  "            system: content.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot),",
+  '            ...(frontmatter.description ? { description: frontmatter.description } : {}),',
+  "            mode: 'subagent',",
+  '            hidden: false,',
+  '            request: { headers: {}, body: {} },',
+  "            permissions: [{ action: '*', resource: '*', effect: 'allow' }],",
+  '          },',
+  '        })',
+  '      }',
+  '      await ctx.agent.transform((draft) => {',
+  '        for (const agent of agents) {',
+  '          try {',
+  '            draft.update(agent.id, (existing) => Object.assign(existing, agent.definition))',
+  '          } catch (err) {',
+  '            // Contain per-agent failures so one rejection does not disable the plugin.',
+  "            console.error('[__PLUGIN_NAME__] agent \"' + agent.id + '\" rejected by host, skipping:', err)",
+  '          }',
+  '        }',
+  '      })',
+  '    }',
+  '  } catch (err) {',
+  "    console.error('[__PLUGIN_NAME__] agent registration failed:', err)",
+  '  }',
+].join('\n')
+
 const V2_BOOTSTRAP_HOOK = [
   '',
-  "  if (!ctx.session || typeof ctx.session.hook !== 'function') return",
-  '  try {',
-  "    await ctx.session.hook('context', async (event) => {",
+  '  // V2 dispatches three request shapes: context (normal turn), compaction',
+  '  // (auto-summary), and generate (explicit generation). Registering only',
+  '  // context makes the other two diverge from the cached prefix at the',
+  '  // first user message, forcing a cold re-prefill of large sessions.',
+  '  const injectBootstrap = async (event) => {',
+  '    try {',
   '      const bootstrap = getBootstrapContent()',
   '      if (!bootstrap || !event.messages || !event.messages.length) return',
   "      const firstUser = event.messages.find((m) => m.role === 'user')",
-  '      if (!firstUser || !firstUser.content || !firstUser.content.length) return',
-  "      if (firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))) return",
-  "      firstUser.content.unshift({ type: 'text', text: bootstrap })",
-  '    })',
-  '  } catch (err) {',
-  "    console.error('[__PLUGIN_NAME__] session hook registration failed:', err)",
+  '      if (firstUser && (!firstUser.content || !firstUser.content.length)) return',
+  "      if (firstUser && firstUser.content.some((p) => p.type === 'text' && p.text && p.text.includes(BOOTSTRAP_MARKER))) return",
+  '      // Native compaction can leave only an opaque checkpoint: keep it and',
+  '      // append the transient bootstrap as a user message.',
+  '      if (firstUser) {',
+  "        firstUser.content.unshift({ type: 'text', text: bootstrap })",
+  '      } else {',
+  "        event.messages.push({ role: 'user', content: [{ type: 'text', text: bootstrap }] })",
+  '      }',
+  '    } catch (err) {',
+  "      console.error('[__PLUGIN_NAME__] bootstrap injection failed:', err)",
+  '    }',
+  '  }',
+  "  for (const hookName of ['context', 'compaction', 'generate']) {",
+  '    try {',
+  '      await ctx.session.hook(hookName, injectBootstrap)',
+  '    } catch (err) {',
+  "      console.error('[__PLUGIN_NAME__] session hook registration failed (' + hookName + '):', err)",
+  '    }',
   '  }',
 ].join('\n')
 
@@ -181,7 +246,7 @@ const OPENCODE_PLUGIN_TEMPLATE = [
   '}',
   '',
   ...V2_SETUP_LINES,
-].join('\n').replace('__V2_BOOTSTRAP__', V2_BOOTSTRAP_HOOK)
+].join('\n')
 
 // bootstrap: none variant -- config-hook-only plugin. The bootstrap cache
 // and message-transform hook are omitted entirely rather than emitted as
@@ -215,7 +280,7 @@ const OPENCODE_PLUGIN_TEMPLATE_NO_BOOTSTRAP = [
   '}',
   '',
   ...V2_SETUP_LINES,
-].join('\n').replace('__V2_BOOTSTRAP__', '')
+].join('\n')
 
 // Plugin names are validated as /^[a-z0-9][a-z0-9-]*$/ (config.ts), which
 // permits a leading digit -- not a valid start for a JS identifier. Prefix
@@ -234,6 +299,8 @@ function pluginModule(model: PluginModel): string {
   const bootstrapPath = bootstrapContentPath(model)
   const template = bootstrapPath !== undefined ? OPENCODE_PLUGIN_TEMPLATE : OPENCODE_PLUGIN_TEMPLATE_NO_BOOTSTRAP
   return template
+    .replace('__V2_AGENT__', () => (model.agents.length > 0 ? V2_AGENT_BLOCK : ''))
+    .replace('__V2_BOOTSTRAP__', () => (bootstrapPath !== undefined ? V2_BOOTSTRAP_HOOK : ''))
     .replaceAll('__PLUGIN_NAME__', model.config.name)
     .replaceAll('__PASCAL_NAME__', toPascalCase(model.config.name))
     .replaceAll('__SKILLS_DIR__', model.config.components.skills)
